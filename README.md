@@ -106,50 +106,196 @@
 
 ## 아키텍처 다이어그램
 
-### AWS 퍼블릭 클라우드
+### AWS 퍼블릭 클라우드 - 전체 아키텍처
 ```mermaid
 flowchart TD
+    subgraph "External"
+        USER[사용자]
+        DEV[개발자]
+    end
+    
     subgraph "AWS Public Cloud"
-        ALB[Application Load Balancer]
-        EKS[EKS Cluster]
-        RDS["RDS (PostgreSQL)"]
-        S3["S3 Storage"]
+        subgraph "VPC"
+            subgraph "Public Subnet"
+                ALB[Application Load Balancer]
+                NAT[NAT Gateway]
+            end
+            
+            subgraph "Private Subnet"
+                subgraph "EKS Cluster"
+                    subgraph "Control Plane (HA)"
+                        CP1[Control Plane 1]
+                        CP2[Control Plane 2] 
+                        CP3[Control Plane 3]
+                    end
+                    
+                    subgraph "Worker Nodes"
+                        subgraph "System Namespace"
+                            ING[Ingress Controller]
+                            PROM[Prometheus]
+                            GRAF[Grafana]
+                            VELERO[Velero]
+                        end
+                        
+                        subgraph "App Namespace"
+                            API[API Gateway]
+                            USER_SVC[User Service]
+                            AUTH[Auth Service]
+                            PROD[Product Service]
+                            INV[Inventory Service]
+                            ORDER[Order Service]
+                            PAY[Payment Service]
+                            NOTI[Notification Service]
+                            REV[Review Service]
+                            ANA[Analytics Service]
+                            LOG[Log Service]
+                            HEALTH[Health Service]
+                        end
+                    end
+                end
+            end
+            
+            subgraph "Database Subnet"
+                RDS1["RDS Multi-AZ<br/>(User DB)"]
+                RDS2["RDS Multi-AZ<br/>(Product DB)"]
+                RDS3["RDS Multi-AZ<br/>(Order DB)"]
+                RDS4["RDS Multi-AZ<br/>(Others)"]
+            end
+        end
         
-        subgraph "EKS Cluster"
-            MS1[API Gateway]
-            MS2[User Service]
-            MS3[Auth Service]
-            MS4[Product Service]
-            MS5[+ 8 More Services]
+        S3[S3 Bucket]
+        ECR[ECR Registry]
+        
+        subgraph "CI/CD"
+            JENKINS[Jenkins on EKS]
+            ARGOCD[ArgoCD]
+            GITHUB[GitHub Repository]
+        end
+        
+        subgraph "Monitoring"
+            CW[CloudWatch]
+            ELK[ELK Stack]
         end
     end
     
-    ALB --> EKS
-    EKS --> RDS
-    EKS --> S3
+    USER --> ALB
+    DEV --> JENKINS
+    ALB --> ING
+    ING --> API
+    API --> USER_SVC
+    API --> AUTH
+    API --> PROD
+    API --> ORDER
+    USER_SVC --> RDS1
+    PROD --> RDS2
+    ORDER --> RDS3
+    AUTH --> RDS4
+    ORDER --> S3
+    JENKINS --> ECR
+    JENKINS --> ARGOCD
+    ARGOCD --> EKS
+    GITHUB --> JENKINS
+    PROM --> GRAF
+    VELERO --> S3
 ```
 
-### OpenStack 프라이빗 클라우드
+### OpenStack 프라이빗 클라우드 - 전체 아키텍처
 ```mermaid
 flowchart TD
+    subgraph "External"
+        USER[사용자]
+        DEV[개발자]
+    end
+    
     subgraph "OpenStack Private Cloud"
-        LB[Load Balancer]
-        K8S[Kubernetes Cluster]
-        DB["PostgreSQL (Trove)"]
-        OBJ["Swift Object Storage"]
+        subgraph "Network (Neutron)"
+            subgraph "Public Network"
+                LB[Load Balancer]
+                FIP[Floating IP]
+            end
+            
+            subgraph "Private Network"
+                subgraph "Kubernetes Cluster (Magnum)"
+                    subgraph "Control Plane (HA)"
+                        CP1[Control Plane 1]
+                        CP2[Control Plane 2]
+                        CP3[Control Plane 3]
+                    end
+                    
+                    subgraph "Worker Nodes (Nova)"
+                        subgraph "System Namespace"
+                            ING[Ingress Controller]
+                            PROM[Prometheus]
+                            GRAF[Grafana]
+                            VELERO[Velero]
+                        end
+                        
+                        subgraph "App Namespace"
+                            API[API Gateway]
+                            USER_SVC[User Service]
+                            AUTH[Auth Service]
+                            PROD[Product Service]
+                            INV[Inventory Service]
+                            ORDER[Order Service]
+                            PAY[Payment Service]
+                            NOTI[Notification Service]
+                            REV[Review Service]
+                            ANA[Analytics Service]
+                            LOG[Log Service]
+                            HEALTH[Health Service]
+                        end
+                    end
+                end
+            end
+            
+            subgraph "Database Network"
+                DB1["Trove PostgreSQL<br/>(User DB)"]
+                DB2["Trove PostgreSQL<br/>(Product DB)"]
+                DB3["Trove PostgreSQL<br/>(Order DB)"]
+                DB4["Trove PostgreSQL<br/>(Others)"]
+            end
+        end
         
-        subgraph "Kubernetes Cluster"
-            MS1[API Gateway]
-            MS2[User Service] 
-            MS3[Auth Service]
-            MS4[Product Service]
-            MS5[+ 8 More Services]
+        SWIFT[Swift Object Storage]
+        GLANCE[Glance Image Service]
+        
+        subgraph "CI/CD"
+            JENKINS[Jenkins on K8s]
+            ARGOCD[ArgoCD]
+            GITLAB[GitLab Repository]
+        end
+        
+        subgraph "Monitoring"
+            HEAT[Heat Orchestration]
+            CEILOMETER[Ceilometer Telemetry]
+        end
+        
+        subgraph "Identity & Security"
+            KEYSTONE[Keystone Identity]
+            BARBICAN[Barbican Secrets]
         end
     end
     
-    LB --> K8S
-    K8S --> DB
-    K8S --> OBJ
+    USER --> LB
+    DEV --> JENKINS
+    LB --> ING
+    ING --> API
+    API --> USER_SVC
+    API --> AUTH
+    API --> PROD
+    API --> ORDER
+    USER_SVC --> DB1
+    PROD --> DB2
+    ORDER --> DB3
+    AUTH --> DB4
+    ORDER --> SWIFT
+    JENKINS --> GLANCE
+    JENKINS --> ARGOCD
+    ARGOCD --> K8s
+    GITLAB --> JENKINS
+    PROM --> GRAF
+    VELERO --> SWIFT
+    KEYSTONE --> API
 ```
 
 ## 실행 계획
