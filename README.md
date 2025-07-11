@@ -72,12 +72,12 @@
 ## 프로젝트 구조 (예상)
 
 ```
-├── aws-public-cloud/           # AWS 퍼블릭 클라우드 구성
+├── aws/                        # AWS 퍼블릭 클라우드 구성
 │   ├── terraform/              # AWS 인프라 IaC
 │   ├── kubernetes/             # K8s 매니페스트
 │   ├── microservices/          # 마이크로서비스 소스코드
 │   └── ci-cd/                  # Jenkins, ArgoCD 설정
-├── openstack-private-cloud/    # OpenStack 프라이빗 클라우드 구성
+├── openstack/                  # OpenStack 프라이빗 클라우드 구성
 │   ├── openstack-setup/        # OpenStack 설치 스크립트
 │   ├── kubernetes/             # K8s 매니페스트
 │   ├── microservices/          # 마이크로서비스 소스코드
