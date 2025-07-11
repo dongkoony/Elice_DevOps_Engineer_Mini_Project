@@ -1,0 +1,42 @@
+# ===========================================
+# 개발환경 설정
+# ===========================================
+# 사용법: terraform plan -var-file="terraform.tfvars.dev"
+#        terraform apply -var-file="terraform.tfvars.dev"
+
+# 프로젝트 기본 정보
+project_name = "elice-devops-dev"
+region       = "ap-northeast-2"
+environment  = "development"
+
+# VPC 네트워크 설정
+vpc_cidr = "10.0.0.0/16"
+
+# EKS 클러스터 설정
+eks_version                = "1.31"
+eks_node_instance_types    = ["t3.small"]
+eks_node_desired_size      = 1
+eks_node_min_size          = 1
+eks_node_max_size          = 3
+
+# RDS 데이터베이스 설정
+rds_engine_version         = "15.13"
+rds_instance_class         = "db.t3.micro"
+rds_allocated_storage      = 20
+rds_max_allocated_storage  = 50
+
+# 마이크로서비스 목록
+microservices = [
+  "api-gateway",
+  "user-service", 
+  "auth-service",
+  "product-service",
+  "inventory-service",
+  "order-service",
+  "payment-service",
+  "notification-service",
+  "review-service",
+  "analytics-service",
+  "log-service",
+  "health-service"
+] 
