@@ -1,0 +1,279 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: elice-postgres
+    environment:
+      POSTGRES_DB: elice_db
+      POSTGRES_USER: elice_user
+      POSTGRES_PASSWORD: elice_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U elice_user -d elice_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - elice-network
+
+  # API Gateway - Main entry point
+  api-gateway:
+    build: ./api-gateway
+    container_name: elice-api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - ENV=development
+      - USER_SERVICE_URL=http://user-service:8080
+      - AUTH_SERVICE_URL=http://auth-service:8080
+      - PRODUCT_SERVICE_URL=http://product-service:8080
+      - ORDER_SERVICE_URL=http://order-service:8080
+      - PAYMENT_SERVICE_URL=http://payment-service:8080
+      - INVENTORY_SERVICE_URL=http://inventory-service:8080
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8080
+      - REVIEW_SERVICE_URL=http://review-service:8080
+      - ANALYTICS_SERVICE_URL=http://analytics-service:8080
+      - LOG_SERVICE_URL=http://log-service:8080
+      - HEALTH_SERVICE_URL=http://health-service:8080
+    depends_on:
+      - user-service
+      - auth-service
+      - product-service
+      - order-service
+      - payment-service
+    networks:
+      - elice-network
+
+  # User Service
+  user-service:
+    build: ./user-service
+    container_name: elice-user-service
+    ports:
+      - "8081:8080"
+    environment:
+      - ENV=development
+      - DATABASE_URL=postgresql://elice_user:elice_password@postgres:5432/elice_db
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=elice_db
+      - DB_USER=elice_user
+      - DB_PASSWORD=elice_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - elice-network
+
+  # Auth Service
+  auth-service:
+    build: ./auth-service
+    container_name: elice-auth-service
+    ports:
+      - "8082:8080"
+    environment:
+      - ENV=development
+      - DATABASE_URL=postgresql://elice_user:elice_password@postgres:5432/elice_db
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=elice_db
+      - DB_USER=elice_user
+      - DB_PASSWORD=elice_password
+      - JWT_SECRET=your-jwt-secret-key
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - elice-network
+
+  # Product Service
+  product-service:
+    build: ./product-service
+    container_name: elice-product-service
+    ports:
+      - "8083:8080"
+    environment:
+      - ENV=development
+      - DATABASE_URL=postgresql://elice_user:elice_password@postgres:5432/elice_db
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=elice_db
+      - DB_USER=elice_user
+      - DB_PASSWORD=elice_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - elice-network
+
+  # Inventory Service
+  inventory-service:
+    build: ./inventory-service
+    container_name: elice-inventory-service
+    ports:
+      - "8084:8080"
+    environment:
+      - ENV=development
+      - DATABASE_URL=postgresql://elice_user:elice_password@postgres:5432/elice_db
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=elice_db
+      - DB_USER=elice_user
+      - DB_PASSWORD=elice_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - elice-network
+
+  # Order Service
+  order-service:
+    build: ./order-service
+    container_name: elice-order-service
+    ports:
+      - "8085:8080"
+    environment:
+      - ENV=development
+      - DATABASE_URL=postgresql://elice_user:elice_password@postgres:5432/elice_db
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=elice_db
+      - DB_USER=elice_user
+      - DB_PASSWORD=elice_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - elice-network
+
+  # Payment Service
+  payment-service:
+    build: ./payment-service
+    container_name: elice-payment-service
+    ports:
+      - "8086:8080"
+    environment:
+      - ENV=development
+      - DATABASE_URL=postgresql://elice_user:elice_password@postgres:5432/elice_db
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=elice_db
+      - DB_USER=elice_user
+      - DB_PASSWORD=elice_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - elice-network
+
+  # Notification Service
+  notification-service:
+    build: ./notification-service
+    container_name: elice-notification-service
+    ports:
+      - "8087:8080"
+    environment:
+      - ENV=development
+      - DATABASE_URL=postgresql://elice_user:elice_password@postgres:5432/elice_db
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=elice_db
+      - DB_USER=elice_user
+      - DB_PASSWORD=elice_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - elice-network
+
+  # Review Service
+  review-service:
+    build: ./review-service
+    container_name: elice-review-service
+    ports:
+      - "8088:8080"
+    environment:
+      - ENV=development
+      - DATABASE_URL=postgresql://elice_user:elice_password@postgres:5432/elice_db
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=elice_db
+      - DB_USER=elice_user
+      - DB_PASSWORD=elice_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - elice-network
+
+  # Analytics Service
+  analytics-service:
+    build: ./analytics-service
+    container_name: elice-analytics-service
+    ports:
+      - "8089:8080"
+    environment:
+      - ENV=development
+      - DATABASE_URL=postgresql://elice_user:elice_password@postgres:5432/elice_db
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=elice_db
+      - DB_USER=elice_user
+      - DB_PASSWORD=elice_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - elice-network
+
+  # Log Service
+  log-service:
+    build: ./log-service
+    container_name: elice-log-service
+    ports:
+      - "8090:8080"
+    environment:
+      - ENV=development
+      - DATABASE_URL=postgresql://elice_user:elice_password@postgres:5432/elice_db
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=elice_db
+      - DB_USER=elice_user
+      - DB_PASSWORD=elice_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - elice-network
+
+  # Health Service
+  health-service:
+    build: ./health-service
+    container_name: elice-health-service
+    ports:
+      - "8091:8080"
+    environment:
+      - ENV=development
+      - DATABASE_URL=postgresql://elice_user:elice_password@postgres:5432/elice_db
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=elice_db
+      - DB_USER=elice_user
+      - DB_PASSWORD=elice_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - elice-network
+
+volumes:
+  postgres_data:
+
+networks:
+  elice-network:
+    driver: bridge 
