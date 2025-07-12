@@ -62,7 +62,7 @@ variable "database_subnet_cidrs" {
 variable "eks_version" {
   description = "EKS 클러스터 버전"
   type        = string
-  default     = "1.28"
+  default     = "1.31"
 }
 
 variable "eks_node_instance_types" {
