@@ -1,0 +1,196 @@
+# Elice DevOps Project - Image Tagging Strategy Configuration
+# 마이크로서비스 이미지 태깅 및 버전 관리 전략
+
+project:
+  name: "elice-devops"
+  registry: "949019836804.dkr.ecr.ap-northeast-2.amazonaws.com"
+  
+# 환경별 설정
+environments:
+  dev:
+    description: "개발 환경"
+    auto_deploy: true
+    retention_days: 7
+    tags:
+      - type: "timestamp"
+        format: "dev-{timestamp}-{git_hash}"
+      - type: "latest"
+        enabled: true
+      - type: "branch"
+        format: "dev-{branch_name}"
+        
+  stg:
+    description: "스테이징 환경"
+    auto_deploy: false
+    retention_days: 14
+    tags:
+      - type: "timestamp"
+        format: "stg-{timestamp}-{git_hash}"
+      - type: "latest"
+        enabled: true
+      - type: "version"
+        format: "stg-v{version}"
+        
+  prod:
+    description: "프로덕션 환경"
+    auto_deploy: false
+    retention_days: 90
+    tags:
+      - type: "version"
+        format: "v{major}.{minor}.{patch}"
+      - type: "timestamp"
+        format: "prod-{timestamp}-{git_hash}"
+      - type: "latest"
+        enabled: false  # 프로덕션에서는 latest 태그 사용 안함
+
+# 태그 템플릿
+tag_templates:
+  timestamp:
+    format: "{env}-{date}-{time}-{git_hash}"
+    date_format: "%Y%m%d"
+    time_format: "%H%M%S"
+    
+  semantic_version:
+    format: "v{major}.{minor}.{patch}"
+    increment_rules:
+      major: "breaking_change"
+      minor: "feature"
+      patch: "bugfix"
+      
+  branch_based:
+    feature: "feature-{branch}-{timestamp}"
+    hotfix: "hotfix-{branch}-{timestamp}"
+    release: "release-{version}"
+
+# 빌드 메타데이터
+build_metadata:
+  include:
+    - git_commit_hash: true
+    - build_timestamp: true
+    - build_number: false
+    - jenkins_build_id: false
+    - git_branch: true
+    - git_tag: true
+    
+  labels:
+    maintainer: "elice-devops-team"
+    project: "elice-devops-miniproject"
+    version: "1.0.0"
+
+# 이미지 라이프사이클 정책
+lifecycle_policies:
+  dev:
+    max_images: 10
+    expire_after_days: 7
+    keep_last_n: 5
+    
+  stg:
+    max_images: 20
+    expire_after_days: 14
+    keep_last_n: 10
+    
+  prod:
+    max_images: 50
+    expire_after_days: 90
+    keep_last_n: 20
+    keep_tagged_images: true
+
+# 배포 전략
+deployment_strategy:
+  dev:
+    type: "rolling_update"
+    auto_rollback: true
+    health_check_timeout: "60s"
+    
+  stg:
+    type: "blue_green"
+    manual_approval: false
+    smoke_test: true
+    health_check_timeout: "120s"
+    
+  prod:
+    type: "canary"
+    manual_approval: true
+    smoke_test: true
+    canary_percentage: 10
+    health_check_timeout: "300s"
+
+# 보안 설정
+security:
+  scan_on_push: true
+  vulnerability_threshold: "HIGH"
+  compliance_checks:
+    - "dockerfile_best_practices"
+    - "secrets_detection"
+    - "license_compliance"
+    
+# 알림 설정
+notifications:
+  slack:
+    enabled: false
+    webhook_url: ""
+    channels:
+      success: "#devops-success"
+      failure: "#devops-alerts"
+      
+  email:
+    enabled: false
+    recipients:
+      - "devops-team@elice.com"
+
+# 서비스별 특별 설정
+service_overrides:
+  api-gateway:
+    build_timeout: "600s"
+    resource_limits:
+      memory: "1Gi"
+      cpu: "500m"
+      
+  user-service:
+    health_check_path: "/health"
+    startup_timeout: "60s"
+    
+  auth-service:
+    security_scan: "strict"
+    compliance_required: true
+
+# CI/CD 파이프라인 설정
+pipeline:
+  stages:
+    - name: "build"
+      parallel: true
+      timeout: "20m"
+      
+    - name: "test"
+      depends_on: ["build"]
+      timeout: "10m"
+      
+    - name: "security_scan"
+      depends_on: ["build"]
+      timeout: "15m"
+      
+    - name: "push_to_ecr"
+      depends_on: ["test", "security_scan"]
+      timeout: "10m"
+      
+    - name: "deploy"
+      depends_on: ["push_to_ecr"]
+      manual_approval: true
+      timeout: "30m"
+
+# 모니터링 및 로깅
+monitoring:
+  metrics:
+    - "build_duration"
+    - "image_size"
+    - "vulnerability_count"
+    - "deployment_success_rate"
+    
+  logs:
+    retention_days: 30
+    log_level: "INFO"
+    
+  alerts:
+    build_failure: true
+    large_image_size: true
+    high_vulnerability_count: true 
