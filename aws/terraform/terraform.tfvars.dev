@@ -1,8 +1,9 @@
 # ===========================================
 # 개발환경 설정
 # ===========================================
-# 사용법: terraform plan -var-file="terraform.tfvars.dev"
-#        terraform apply -var-file="terraform.tfvars.dev"
+# terraform workspace select dev
+# terraform plan -var-file="terraform.tfvars.dev"
+# terraform apply -var-file="terraform.tfvars.dev" --auto-approve
 
 # 프로젝트 기본 정보
 project_name = "elice-devops-dev"
@@ -11,6 +12,11 @@ environment  = "development"
 
 # VPC 네트워크 설정
 vpc_cidr = "10.0.0.0/16"
+
+# 개발환경: EKS 요구사항(최소 2 AZ) + NAT Gateway 1개로 비용 절약
+public_subnet_cidrs = ["10.0.1.0/24"]                    # NAT Gateway 1개만
+private_subnet_cidrs = ["10.0.11.0/24", "10.0.12.0/24"]  # EKS용 2개 AZ
+database_subnet_cidrs = ["10.0.21.0/24", "10.0.22.0/24"] # RDS용 2개 AZ
 
 # EKS 클러스터 설정
 eks_version                = "1.31"
