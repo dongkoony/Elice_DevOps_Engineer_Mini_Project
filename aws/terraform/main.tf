@@ -15,8 +15,12 @@ locals {
 module "vpc" {
   source = "./modules/vpc"
 
-  project_name = local.project_name
-  common_tags  = local.common_tags
+  project_name             = local.project_name
+  vpc_cidr                 = var.vpc_cidr
+  public_subnet_cidrs      = var.public_subnet_cidrs
+  private_subnet_cidrs     = var.private_subnet_cidrs
+  database_subnet_cidrs    = var.database_subnet_cidrs
+  common_tags              = local.common_tags
 }
 
 # 보안 그룹 모듈 호출
@@ -88,7 +92,7 @@ module "s3" {
 resource "aws_eks_addon" "ebs_csi_driver" {
   cluster_name             = module.eks.cluster_id
   addon_name               = "aws-ebs-csi-driver"
-  addon_version            = "v1.24.0-eksbuild.1"
+  addon_version            = "v1.45.0-eksbuild.2"
   service_account_role_arn = module.iam_oidc.ebs_csi_driver_role_arn
 
   depends_on = [
