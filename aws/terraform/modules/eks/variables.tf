@@ -16,7 +16,7 @@ variable "node_role_arn" {
 variable "cluster_version" {
   description = "EKS 클러스터 버전"
   type        = string
-  default     = "1.28"
+  default     = "1.31"
 }
 
 variable "public_subnet_ids" {
@@ -87,25 +87,25 @@ variable "node_ssh_key" {
 variable "ebs_csi_driver_version" {
   description = "EBS CSI 드라이버 버전"
   type        = string
-  default     = "v1.24.0-eksbuild.1"
+  default     = "v1.45.0-eksbuild.2"
 }
 
 variable "vpc_cni_version" {
   description = "VPC CNI 버전"
   type        = string
-  default     = "v1.15.1-eksbuild.1"
+  default     = "v1.19.6-eksbuild.7"
 }
 
 variable "coredns_version" {
   description = "CoreDNS 버전"
   type        = string
-  default     = "v1.10.1-eksbuild.5"
+  default     = "v1.11.4-eksbuild.14"
 }
 
 variable "kube_proxy_version" {
   description = "kube-proxy 버전"
   type        = string
-  default     = "v1.28.2-eksbuild.2"
+  default     = "v1.31.10-eksbuild.2"
 }
 
 # 비용 최적화 옵션 추가
