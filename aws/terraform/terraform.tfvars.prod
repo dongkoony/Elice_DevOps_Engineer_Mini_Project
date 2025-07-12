@@ -1,8 +1,9 @@
 # ===========================================
 # 프로덕션환경 설정
 # ===========================================
-# 사용법: terraform plan -var-file="terraform.tfvars.prod"
-#        terraform apply -var-file="terraform.tfvars.prod"
+# terraform workspace select prod
+# terraform plan -var-file="terraform.tfvars.prod" 
+# terraform apply -var-file="terraform.tfvars.prod" --auto-approve
 
 # 프로젝트 기본 정보
 project_name = "elice-devops-prod"
@@ -11,6 +12,11 @@ environment  = "production"
 
 # VPC 네트워크 설정
 vpc_cidr = "10.2.0.0/16"
+
+# 프로덕션환경: 고가용성을 위해 3개 AZ 사용
+public_subnet_cidrs = ["10.2.1.0/24", "10.2.2.0/24", "10.2.3.0/24"]
+private_subnet_cidrs = ["10.2.11.0/24", "10.2.12.0/24", "10.2.13.0/24"]
+database_subnet_cidrs = ["10.2.21.0/24", "10.2.22.0/24", "10.2.23.0/24"]
 
 # EKS 클러스터 설정
 eks_version                = "1.31"
