@@ -17,13 +17,15 @@
    - 2.1 전체 아키텍처 개요
    - 2.2 마이크로서비스 구성
    - 2.3 환경별 구성
+   - 2.4 CI/CD 파이프라인 아키텍처
 
 3. [구현 내용](#3-구현-내용)
    - 3.1 인프라 구축
    - 3.2 마이크로서비스 배포
    - 3.3 Object Storage (MinIO) 구현
    - 3.4 모니터링 시스템
-   - 3.5 외부 접근 URL
+   - 3.5 CI/CD 파이프라인 설계
+   - 3.6 외부 접근 URL
 
 4. [4가지 관점에서의 구현 분석](#4-4가지-관점에서의-구현-분석)
    - 4.1 관리 편의성 (Management Convenience)
@@ -427,6 +429,275 @@ graph TB
 - **STG 환경**: 통합 테스트 및 운영 환경 시뮬레이션
 - **PROD 환경**: 실제 운영 환경
 
+### 2.4 CI/CD 파이프라인 아키텍처
+
+#### 2.4.1 GitOps 기반 CI/CD 전략
+본 프로젝트에서는 Jenkins와 ArgoCD를 결합한 GitOps 기반의 CI/CD 파이프라인을 설계했습니다.
+
+**■ 전체 파이프라인 구조**
+```
+Developer → GitHub → Jenkins (CI) → ArgoCD (CD) → Kubernetes Cluster
+```
+
+**■ CI/CD 책임 분리**
+- **Jenkins**: Continuous Integration (CI) 담당
+  - 소스 코드 빌드 및 테스트
+  - 컨테이너 이미지 빌드 및 ECR 푸시
+  - 코드 품질 검증 및 보안 스캔
+  - 매니페스트 레포지토리 업데이트
+
+- **ArgoCD**: Continuous Deployment (CD) 담당
+  - GitOps 기반 배포 관리
+  - Kubernetes 클러스터 상태 동기화
+  - 롤백 및 배포 히스토리 관리
+  - 환경별 배포 전략 실행
+
+#### 2.4.2 Jenkins CI 파이프라인 설계
+
+**■ Jenkins 아키텍처**
+```mermaid
+graph LR
+    A[GitHub Webhook] --> B[Jenkins Master]
+    B --> C[Jenkins Agent Pool]
+    C --> D[Docker Build]
+    C --> E[Unit Test]
+    C --> F[Security Scan]
+    D --> G[ECR Push]
+    E --> H[Test Results]
+    F --> I[Security Report]
+    G --> J[Update Manifest Repo]
+    
+    style A fill:#e1f5fe
+    style B fill:#fff3e0
+    style C fill:#e8f5e8
+    style D fill:#f3e5f5
+    style E fill:#e0f2f1
+    style F fill:#ffebee
+    style G fill:#f1f8e9
+    style H fill:#e0f2f1
+    style I fill:#ffebee
+    style J fill:#f3e5f5
+```
+
+**■ Jenkins 파이프라인 단계**
+1. **소스 코드 체크아웃**: GitHub에서 소스 코드 다운로드
+2. **빌드 및 테스트**: 
+   - 코드 컴파일 및 단위 테스트 실행
+   - 코드 커버리지 분석
+   - 정적 코드 분석 (SonarQube)
+3. **보안 스캔**: 
+   - 컨테이너 이미지 취약점 스캔
+   - 의존성 보안 검증
+4. **컨테이너 이미지 빌드**: 
+   - Dockerfile 기반 이미지 빌드
+   - 환경별 태그 생성 (dev-*, stg-*, prod-*)
+5. **ECR 푸시**: 빌드된 이미지를 ECR에 푸시
+6. **매니페스트 업데이트**: 
+   - Kubernetes 매니페스트 레포지토리 업데이트
+   - 새로운 이미지 태그로 배포 구성 변경
+
+**■ Jenkins 구성 요소**
+```yaml
+# Jenkins Master 구성
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenkins-master
+  namespace: cicd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jenkins-master
+  template:
+    spec:
+      containers:
+      - name: jenkins
+        image: jenkins/jenkins:2.440.3-lts
+        ports:
+        - containerPort: 8080
+        - containerPort: 50000
+        volumeMounts:
+        - name: jenkins-home
+          mountPath: /var/jenkins_home
+        env:
+        - name: JAVA_OPTS
+          value: "-Xmx2048m -Xms1024m"
+      volumes:
+      - name: jenkins-home
+        persistentVolumeClaim:
+          claimName: jenkins-pvc
+```
+
+#### 2.4.3 ArgoCD GitOps 설계
+
+**■ ArgoCD 아키텍처**
+```mermaid
+graph TB
+    A[Git Repository<br/>Manifests] --> B[ArgoCD Server]
+    B --> C[Application Controller]
+    C --> D[DEV Cluster]
+    C --> E[STG Cluster]
+    C --> F[PROD Cluster]
+    
+    G[ArgoCD UI] --> B
+    H[ArgoCD CLI] --> B
+    I[GitHub Webhook] --> B
+    
+    J[Helm Charts] --> A
+    K[Kustomize] --> A
+    
+    style A fill:#e1f5fe
+    style B fill:#fff3e0
+    style C fill:#e8f5e8
+    style D fill:#c8e6c9
+    style E fill:#fff9c4
+    style F fill:#ffcdd2
+    style G fill:#f3e5f5
+    style H fill:#e0f2f1
+    style I fill:#f1f8e9
+    style J fill:#e8eaf6
+    style K fill:#e8eaf6
+```
+
+**■ ArgoCD 애플리케이션 구조**
+```yaml
+# ArgoCD Application 예시
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: elice-microservices-dev
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/organization/k8s-manifests
+    targetRevision: HEAD
+    path: environments/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: elice-devops-dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+```
+
+**■ 환경별 배포 전략**
+
+**DEV 환경 배포**
+- **배포 방식**: 자동 배포 (Auto-sync)
+- **배포 조건**: 모든 CI 테스트 통과 후 즉시 배포
+- **롤백 정책**: 자동 롤백 (Self-heal)
+- **알림**: Slack 개발 채널 알림
+
+**STG 환경 배포**
+- **배포 방식**: 수동 승인 후 배포
+- **배포 조건**: DEV 환경 검증 완료 후
+- **배포 전략**: Blue-Green 배포
+- **알림**: QA 팀 승인 요청 알림
+
+**PROD 환경 배포**
+- **배포 방식**: 수동 승인 + 배포 창 (Deployment Window)
+- **배포 조건**: STG 환경 통합 테스트 완료 후
+- **배포 전략**: Canary 배포 (10% → 50% → 100%)
+- **알림**: 운영 팀 및 관리자 알림
+
+#### 2.4.4 GitOps 워크플로우
+
+**■ 전체 배포 흐름**
+```mermaid
+graph TB
+    A[Developer Push] --> B[GitHub Webhook]
+    B --> C[Jenkins CI Pipeline]
+    C --> D{CI Success?}
+    D -->|Yes| E[Build Container Image]
+    D -->|No| F[CI Failure Notification]
+    E --> G[Push to ECR]
+    G --> H[Update Manifest Repo]
+    H --> I[ArgoCD Sync Detection]
+    I --> J[DEV Auto Deploy]
+    J --> K[DEV Validation]
+    K --> L{DEV Success?}
+    L -->|Yes| M[STG Manual Approval]
+    L -->|No| N[Rollback & Alert]
+    M --> O[STG Blue-Green Deploy]
+    O --> P[STG Integration Test]
+    P --> Q{STG Success?}
+    Q -->|Yes| R[PROD Manual Approval]
+    Q -->|No| S[STG Rollback]
+    R --> T[PROD Canary Deploy]
+    T --> U[PROD Monitoring]
+    U --> V[Full PROD Deploy]
+    
+    style A fill:#e1f5fe
+    style D fill:#fff3e0
+    style L fill:#fff3e0
+    style Q fill:#fff3e0
+    style F fill:#ffcdd2
+    style N fill:#ffcdd2
+    style S fill:#ffcdd2
+```
+
+**■ 레포지토리 구조**
+```
+├── app-source-repo/          # 애플리케이션 소스 코드
+│   ├── microservices/
+│   │   ├── api-gateway/
+│   │   ├── auth-service/
+│   │   └── user-service/
+│   ├── Dockerfile
+│   └── Jenkinsfile
+│
+├── k8s-manifests-repo/       # Kubernetes 매니페스트
+│   ├── environments/
+│   │   ├── dev/
+│   │   ├── stg/
+│   │   └── prod/
+│   ├── base/
+│   │   ├── deployments/
+│   │   ├── services/
+│   │   └── configmaps/
+│   └── argocd-applications/
+│
+└── helm-charts-repo/         # Helm 차트 (옵션)
+    ├── microservices/
+    ├── monitoring/
+    └── cicd/
+```
+
+#### 2.4.5 보안 및 접근 제어
+
+**■ Jenkins 보안 구성**
+- **RBAC 설정**: 역할 기반 접근 제어
+- **시크릿 관리**: AWS Secrets Manager 통합
+- **빌드 격리**: 전용 Jenkins Agent 네임스페이스
+- **네트워크 정책**: 필요한 서비스 간 통신만 허용
+
+**■ ArgoCD 보안 구성**
+- **SSO 통합**: Active Directory 또는 OAuth 통합
+- **RBAC 정책**: 환경별 배포 권한 분리
+- **TLS 암호화**: 모든 통신 암호화
+- **감사 로깅**: 모든 배포 활동 기록
+
+#### 2.4.6 모니터링 및 알림
+
+**■ 파이프라인 모니터링**
+- **Jenkins 메트릭**: Prometheus 연동
+- **ArgoCD 메트릭**: Grafana 대시보드
+- **배포 성공률**: 환경별 배포 성공률 추적
+- **MTTR 측정**: 평균 복구 시간 모니터링
+
+**■ 알림 시스템**
+- **성공 알림**: 배포 완료 시 Slack 알림
+- **실패 알림**: 즉시 개발팀 알림
+- **승인 요청**: 관리자 승인 필요 시 알림
+- **롤백 알림**: 자동 롤백 발생 시 알림
+
+이러한 CI/CD 파이프라인 설계를 통해 안전하고 효율적인 DevOps 환경을 구축할 수 있습니다.
+
 ## 3. 구현 내용
 
 ### 3.1 인프라 구축
@@ -613,9 +884,402 @@ spec:
           value: "elice_admin"
 ```
 
-### 3.5 외부 접근 URL
+### 3.5 CI/CD 파이프라인 설계
 
-#### 3.5.1 서비스 접근 URL
+#### 3.5.1 Jenkins 구현 계획
+현재는 수동 배포 방식이지만, 향후 Jenkins를 통한 자동화된 CI 파이프라인 구축을 계획하고 있습니다.
+
+**■ Jenkins 배포 구성**
+```yaml
+# Jenkins를 위한 전용 네임스페이스 생성
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cicd
+---
+# Jenkins Master 배포
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenkins-master
+  namespace: cicd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jenkins-master
+  template:
+    spec:
+      serviceAccountName: jenkins-sa
+      containers:
+      - name: jenkins
+        image: jenkins/jenkins:2.440.3-lts
+        ports:
+        - containerPort: 8080
+        - containerPort: 50000
+        volumeMounts:
+        - name: jenkins-home
+          mountPath: /var/jenkins_home
+        env:
+        - name: JAVA_OPTS
+          value: "-Xmx2048m -Xms1024m"
+        - name: JENKINS_OPTS
+          value: "--httpPort=8080 --httpsPort=-1"
+      volumes:
+      - name: jenkins-home
+        persistentVolumeClaim:
+          claimName: jenkins-pvc
+---
+# Jenkins 서비스 (LoadBalancer)
+apiVersion: v1
+kind: Service
+metadata:
+  name: jenkins-service
+  namespace: cicd
+spec:
+  type: LoadBalancer
+  selector:
+    app: jenkins-master
+  ports:
+  - name: web
+    port: 8080
+    targetPort: 8080
+  - name: agent
+    port: 50000
+    targetPort: 50000
+```
+
+**■ Jenkins 파이프라인 구성 예시**
+```groovy
+// Jenkinsfile 예시
+pipeline {
+    agent any
+    
+    environment {
+        ECR_REGISTRY = "949019836804.dkr.ecr.ap-northeast-2.amazonaws.com"
+        AWS_REGION = "ap-northeast-2"
+        SERVICE_NAME = "${params.SERVICE_NAME}"
+        ENVIRONMENT = "${params.ENVIRONMENT}"
+        BUILD_NUMBER = "${env.BUILD_NUMBER}"
+        GIT_COMMIT = "${env.GIT_COMMIT[0..7]}"
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+        
+        stage('Build & Test') {
+            parallel {
+                stage('Unit Test') {
+                    steps {
+                        script {
+                            sh '''
+                                cd microservices/${SERVICE_NAME}
+                                npm install
+                                npm test
+                            '''
+                        }
+                    }
+                }
+                
+                stage('Code Quality') {
+                    steps {
+                        script {
+                            sh '''
+                                sonar-scanner \
+                                  -Dsonar.projectKey=${SERVICE_NAME} \
+                                  -Dsonar.sources=./microservices/${SERVICE_NAME}/src \
+                                  -Dsonar.host.url=http://sonarqube:9000
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Security Scan') {
+            steps {
+                script {
+                    sh '''
+                        # Container image security scan
+                        trivy image --exit-code 1 --severity HIGH,CRITICAL ${SERVICE_NAME}:latest
+                        
+                        # Dependency security scan
+                        npm audit --audit-level high
+                    '''
+                }
+            }
+        }
+        
+        stage('Build Container Image') {
+            steps {
+                script {
+                    def imageTag = "${ENVIRONMENT}-${BUILD_NUMBER}-${GIT_COMMIT}"
+                    sh '''
+                        cd microservices/${SERVICE_NAME}
+                        docker build -t ${ECR_REGISTRY}/elice-devops-${ENVIRONMENT}-${SERVICE_NAME}:${imageTag} .
+                        docker tag ${ECR_REGISTRY}/elice-devops-${ENVIRONMENT}-${SERVICE_NAME}:${imageTag} \
+                                   ${ECR_REGISTRY}/elice-devops-${ENVIRONMENT}-${SERVICE_NAME}:latest
+                    '''
+                }
+            }
+        }
+        
+        stage('Push to ECR') {
+            steps {
+                script {
+                    sh '''
+                        aws ecr get-login-password --region ${AWS_REGION} | \
+                        docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                        
+                        docker push ${ECR_REGISTRY}/elice-devops-${ENVIRONMENT}-${SERVICE_NAME}:${imageTag}
+                        docker push ${ECR_REGISTRY}/elice-devops-${ENVIRONMENT}-${SERVICE_NAME}:latest
+                    '''
+                }
+            }
+        }
+        
+        stage('Update Manifest Repository') {
+            steps {
+                script {
+                    sh '''
+                        git clone https://github.com/organization/k8s-manifests.git
+                        cd k8s-manifests
+                        
+                        # Update image tag in deployment manifest
+                        sed -i "s|image: .*/${SERVICE_NAME}:.*|image: ${ECR_REGISTRY}/elice-devops-${ENVIRONMENT}-${SERVICE_NAME}:${imageTag}|" \
+                            environments/${ENVIRONMENT}/deployments/${SERVICE_NAME}.yaml
+                        
+                        git add .
+                        git commit -m "Update ${SERVICE_NAME} image to ${imageTag}"
+                        git push origin main
+                    '''
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            slackSend(
+                channel: '#devops-notifications',
+                color: 'good',
+                message: "✅ ${SERVICE_NAME} 배포 성공: ${ENVIRONMENT} 환경"
+            )
+        }
+        failure {
+            slackSend(
+                channel: '#devops-alerts',
+                color: 'danger',
+                message: "❌ ${SERVICE_NAME} 배포 실패: ${ENVIRONMENT} 환경"
+            )
+        }
+    }
+}
+```
+
+#### 3.5.2 ArgoCD 구현 계획
+
+**■ ArgoCD 설치 및 구성**
+```bash
+# ArgoCD 설치
+kubectl create namespace argocd
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+# ArgoCD 서비스 LoadBalancer로 변경
+kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "LoadBalancer"}}'
+
+# 초기 admin 비밀번호 확인
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+```
+
+**■ ArgoCD 애플리케이션 구성**
+```yaml
+# dev-applications.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: elice-microservices-dev
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/organization/k8s-manifests
+    targetRevision: HEAD
+    path: environments/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: elice-devops-dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+    - PrunePropagationPolicy=foreground
+    - PruneLast=true
+---
+# stg-applications.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: elice-microservices-stg
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/organization/k8s-manifests
+    targetRevision: HEAD
+    path: environments/stg
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: elice-devops-stg
+  syncPolicy:
+    syncOptions:
+    - CreateNamespace=true
+    # STG는 수동 승인 필요
+---
+# prod-applications.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: elice-microservices-prod
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/organization/k8s-manifests
+    targetRevision: HEAD
+    path: environments/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: elice-devops-prod
+  syncPolicy:
+    syncOptions:
+    - CreateNamespace=true
+    # PROD는 수동 승인 + 배포 창 필요
+```
+
+**■ ArgoCD 프로젝트 및 RBAC 설정**
+```yaml
+# argocd-rbac-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-rbac-cm
+  namespace: argocd
+data:
+  policy.default: role:readonly
+  policy.csv: |
+    # 개발팀 - DEV 환경 전체 권한
+    p, role:dev-team, applications, *, elice-microservices-dev, allow
+    p, role:dev-team, applications, sync, elice-microservices-dev, allow
+    p, role:dev-team, applications, rollback, elice-microservices-dev, allow
+    
+    # QA팀 - STG 환경 배포 권한
+    p, role:qa-team, applications, *, elice-microservices-stg, allow
+    p, role:qa-team, applications, sync, elice-microservices-stg, allow
+    
+    # 운영팀 - PROD 환경 배포 권한
+    p, role:ops-team, applications, *, elice-microservices-prod, allow
+    p, role:ops-team, applications, sync, elice-microservices-prod, allow
+    
+    # 그룹 매핑
+    g, dev-team, role:dev-team
+    g, qa-team, role:qa-team
+    g, ops-team, role:ops-team
+```
+
+#### 3.5.3 모니터링 및 알림 통합
+
+**■ 파이프라인 모니터링 구성**
+```yaml
+# jenkins-monitoring.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-jenkins-config
+  namespace: monitoring
+data:
+  jenkins-scrape-config.yml: |
+    - job_name: 'jenkins'
+      static_configs:
+      - targets: ['jenkins-service.cicd.svc.cluster.local:8080']
+      metrics_path: '/prometheus'
+      scrape_interval: 30s
+---
+# argocd-monitoring.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-argocd-config
+  namespace: monitoring
+data:
+  argocd-scrape-config.yml: |
+    - job_name: 'argocd-server'
+      static_configs:
+      - targets: ['argocd-server.argocd.svc.cluster.local:8080']
+      metrics_path: '/metrics'
+      scrape_interval: 30s
+```
+
+**■ Slack 알림 구성**
+```yaml
+# slack-notification-config.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: slack-webhook
+  namespace: cicd
+type: Opaque
+data:
+  webhook-url: <base64-encoded-webhook-url>
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: notification-config
+  namespace: cicd
+data:
+  slack-template.json: |
+    {
+      "channel": "#devops-notifications",
+      "username": "ArgoCD",
+      "icon_emoji": ":rocket:",
+      "attachments": [
+        {
+          "color": "good",
+          "title": "Deployment Status",
+          "fields": [
+            {
+              "title": "Application",
+              "value": "{{.app.metadata.name}}",
+              "short": true
+            },
+            {
+              "title": "Environment",
+              "value": "{{.app.spec.destination.namespace}}",
+              "short": true
+            },
+            {
+              "title": "Status",
+              "value": "{{.app.status.sync.status}}",
+              "short": true
+            }
+          ]
+        }
+      ]
+    }
+```
+
+이러한 CI/CD 파이프라인을 통해 완전 자동화된 DevOps 환경을 구축할 수 있습니다.
+
+### 3.6 외부 접근 URL
+
+#### 3.6.1 서비스 접근 URL
 ```
 DEV 환경
 http://ad11173e5f7cf4b139198bcd2f6f160c-1010661960.ap-northeast-2.elb.amazonaws.com/
@@ -631,6 +1295,14 @@ http://afe4eff0c8649481082e303a28b97ed3-2032674941.ap-northeast-2.elb.amazonaws.
 
 Grafana (PROD)
 http://a509b25e534d4420ea4e930587bbbfd4-1292485016.ap-northeast-2.elb.amazonaws.com:3000
+
+Jenkins (계획)
+http://jenkins-service.cicd.svc.cluster.local:8080
+(LoadBalancer 생성 시 외부 URL 제공 예정)
+
+ArgoCD (계획)
+http://argocd-server.argocd.svc.cluster.local:8080
+(LoadBalancer 생성 시 외부 URL 제공 예정)
 ```
 
 ## 4. 4가지 관점에서의 구현 분석
@@ -680,6 +1352,10 @@ http://a509b25e534d4420ea4e930587bbbfd4-1292485016.ap-northeast-2.elb.amazonaws.
   stg-20250712-183045-abc123
   dev-20250712-181530-def456
   ```
+- **CI/CD 파이프라인**: Jenkins + ArgoCD 기반 GitOps 워크플로우
+  - 자동화된 빌드, 테스트, 배포 프로세스
+  - 환경별 배포 전략 (Auto-sync, Manual approval, Canary)
+  - 즉시 롤백 및 배포 히스토리 관리
 
 #### 4.2.2 장점
 - 빠른 스케일링 및 롤백 지원
@@ -840,9 +1516,18 @@ HTTP/1.1 200 OK
    - 클러스터 오토스케일러 구성
 
 3. **CI/CD 파이프라인 구축**
-   - Jenkins 또는 GitLab CI 구축
-   - ArgoCD를 통한 GitOps 적용
-   - 자동화된 테스트 및 배포
+   - **Jenkins CI 파이프라인**: 
+     - 소스 코드 빌드, 테스트, 보안 스캔 자동화
+     - ECR 이미지 푸시 및 매니페스트 업데이트
+     - 환경별 파이프라인 구성 (DEV/STG/PROD)
+   - **ArgoCD GitOps 배포**:
+     - 환경별 자동/수동 배포 전략 적용
+     - Blue-Green 및 Canary 배포 구현
+     - 롤백 및 배포 히스토리 관리
+   - **통합 모니터링 및 알림**:
+     - Slack 통합 알림 시스템
+     - 배포 성공률 및 MTTR 측정
+     - 파이프라인 성능 모니터링
 
 4. **보안 강화**
    - 네트워크 정책 적용
@@ -860,12 +1545,14 @@ HTTP/1.1 200 OK
 - **모니터링 시스템**: 실시간 모니터링 및 알림 시스템 구축
 - **S3 호환 스토리지**: MinIO를 통한 객체 스토리지 구현
 - **컨테이너 기반 배포**: 일관된 배포 환경 및 빠른 확장성
+- **CI/CD 파이프라인 설계**: Jenkins + ArgoCD 기반 GitOps 워크플로우 설계
 
 ### 7.3 기술적 우수성
 1. **클라우드 네이티브 접근**: AWS 관리형 서비스를 활용한 운영 부담 최소화
 2. **컨테이너 오케스트레이션**: Kubernetes를 통한 자동화된 배포 및 관리
 3. **Infrastructure as Code**: 선언적 구성을 통한 재현 가능한 인프라
 4. **관측 가능성**: 포괄적인 모니터링 및 로깅 시스템
+5. **GitOps 워크플로우**: Jenkins + ArgoCD 기반 완전 자동화된 CI/CD 파이프라인 설계
 
 ### 7.4 비즈니스 가치
 - **빠른 출시**: 컨테이너화된 배포를 통한 빠른 서비스 출시
