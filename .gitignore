@@ -39,3 +39,4 @@ terraform.rc
 *.csv
 *.hcl
 *.log
+dist/
