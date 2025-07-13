@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+  elice-prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9999:9090"  # Prometheus 9999 포트
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - elice-monitoring
+
+  elice-grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "8888:3000"  # Grafana 8888 포트
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=elice_admin
+    networks:
+      - elice-monitoring
+
+networks:
+  elice-monitoring:
+    driver: bridge
