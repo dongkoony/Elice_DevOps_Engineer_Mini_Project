@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: elice-devops-prod
+  labels:
+    app: user-service
+    environment: production
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        app: user-service
+    spec:
+      containers:
+      - name: user-service
+        image: 949019836804.dkr.ecr.ap-northeast-2.amazonaws.com/elice-devops-prod-user-service:prod-20250712-184430-0591c2a
+        ports:
+        - containerPort: 8080
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: SERVICE_NAME
+          value: "user-service"
+        - name: PORT
+          value: "8080"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: user-db-secret
+              key: database-url
+        - name: DATABASE_USER
+          valueFrom:
+            secretKeyRef:
+              name: user-db-secret
+              key: username
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: user-db-secret
+              key: password
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "125m"
+          limits:
+            memory: "256Mi"
+            cpu: "250m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: elice-devops-prod
+  labels:
+    app: user-service
+spec:
+  selector:
+    app: user-service
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: user-db-secret
+  namespace: elice-devops-prod
+type: Opaque
+data:
+  # 실제 환경에서는 AWS Secrets Manager나 External Secrets Operator를 사용하세요
+  database-url: cG9zdGdyZXNxbDovL2VsaWNlLWRldm9wcy1kZXYtdXNlci1kYi5jZnNrbTBpb2dnaXYuYXAtbm9ydGhlYXN0LTIucmRzLmFtYXpvbmF3cy5jb206NTQzMi91c2VyX2Ri
+  username: dXNlcl91c2Vy
+  password: cGFzc3dvcmQxMjM= 
