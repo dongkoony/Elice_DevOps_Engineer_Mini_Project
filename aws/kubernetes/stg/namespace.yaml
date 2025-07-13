@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: elice-devops-stg
+  labels:
+    environment: staging
+    project: elice-devops 

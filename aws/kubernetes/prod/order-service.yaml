@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+  namespace: elice-devops-prod
+  labels:
+    app: order-service
+    environment: production
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-service
+  template:
+    metadata:
+      labels:
+        app: order-service
+    spec:
+      containers:
+      - name: order-service
+        image: 949019836804.dkr.ecr.ap-northeast-2.amazonaws.com/elice-devops-prod-order-service:prod-20250712-184430-0591c2a
+        ports:
+        - containerPort: 8080
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: SERVICE_NAME
+          value: "order-service"
+        - name: PORT
+          value: "8080"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: order-db-secret
+              key: database-url
+        - name: DATABASE_USER
+          valueFrom:
+            secretKeyRef:
+              name: order-db-secret
+              key: username
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: order-db-secret
+              key: password
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "125m"
+          limits:
+            memory: "256Mi"
+            cpu: "250m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-service
+  namespace: elice-devops-prod
+  labels:
+    app: order-service
+spec:
+  selector:
+    app: order-service
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: order-db-secret
+  namespace: elice-devops-prod
+type: Opaque
+data:
+  database-url: cG9zdGdyZXNxbDovL2VsaWNlLWRldm9wcy1kZXYtb3JkZXItZGIuY2Zza20waW9nZ2l2LmFwLW5vcnRoZWFzdC0yLnJkcy5hbWF6b25hd3MuY29tOjU0MzIvb3JkZXJfZGI=
+  username: b3JkZXJfdXNlcg==
+  password: cGFzc3dvcmQxMjM= 

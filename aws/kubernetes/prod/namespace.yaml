@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: elice-devops-prod
+  labels:
+    environment: production
+    project: elice-devops 
