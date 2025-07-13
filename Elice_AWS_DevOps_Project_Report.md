@@ -562,7 +562,7 @@ graph TB
 
 **■ ArgoCD 애플리케이션 구조**
 ```yaml
-# ArgoCD Application 예시
+# ArgoCD Application 구성성
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -639,33 +639,6 @@ graph TB
     style F fill:#ffcdd2
     style N fill:#ffcdd2
     style S fill:#ffcdd2
-```
-
-**■ 레포지토리 구조**
-```
-├── app-source-repo/          # 애플리케이션 소스 코드
-│   ├── microservices/
-│   │   ├── api-gateway/
-│   │   ├── auth-service/
-│   │   └── user-service/
-│   ├── Dockerfile
-│   └── Jenkinsfile
-│
-├── k8s-manifests-repo/       # Kubernetes 매니페스트
-│   ├── environments/
-│   │   ├── dev/
-│   │   ├── stg/
-│   │   └── prod/
-│   ├── base/
-│   │   ├── deployments/
-│   │   ├── services/
-│   │   └── configmaps/
-│   └── argocd-applications/
-│
-└── helm-charts-repo/         # Helm 차트 (옵션)
-    ├── microservices/
-    ├── monitoring/
-    └── cicd/
 ```
 
 #### 2.4.5 보안 및 접근 제어
