@@ -9,7 +9,7 @@ ENV PYTHONUNBUFFERED=1 \
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
-    build-essential \ \
+    build-essential \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
@@ -30,7 +30,7 @@ ENV PYTHONUNBUFFERED=1 \
     PATH="/opt/venv/bin:$PATH"
 
 # Install only runtime dependencies
-RUN apt-get update && apt-get install -y \ \
+RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
