@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+  namespace: elice-devops-dev
+  labels:
+    app: payment-service
+    environment: development
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment-service
+  template:
+    metadata:
+      labels:
+        app: payment-service
+    spec:
+      containers:
+      - name: payment-service
+        image: 949019836804.dkr.ecr.ap-northeast-2.amazonaws.com/elice-devops-dev-payment-service:dev-20250712-181611-0591c2a
+        ports:
+        - containerPort: 8080
+        env:
+        - name: ENVIRONMENT
+          value: "development"
+        - name: SERVICE_NAME
+          value: "payment-service"
+        - name: PORT
+          value: "8080"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: payment-db-secret
+              key: database-url
+        - name: DATABASE_USER
+          valueFrom:
+            secretKeyRef:
+              name: payment-db-secret
+              key: username
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: payment-db-secret
+              key: password
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "125m"
+          limits:
+            memory: "256Mi"
+            cpu: "250m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-service
+  namespace: elice-devops-dev
+  labels:
+    app: payment-service
+spec:
+  selector:
+    app: payment-service
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: payment-db-secret
+  namespace: elice-devops-dev
+type: Opaque
+data:
+  database-url: cG9zdGdyZXNxbDovL2VsaWNlLWRldm9wcy1kZXYtcGF5bWVudC1kYi5jZnNrbTBpb2dnaXYuYXAtbm9ydGhlYXN0LTIucmRzLmFtYXpvbmF3cy5jb206NTQzMi9wYXltZW50X2Ri
+  username: cGF5bWVudF91c2Vy
+  password: cGFzc3dvcmQxMjM= 
