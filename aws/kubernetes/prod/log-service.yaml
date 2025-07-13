@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: log-service
+  namespace: elice-devops-prod
+  labels:
+    app: log-service
+    environment: production
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: log-service
+  template:
+    metadata:
+      labels:
+        app: log-service
+    spec:
+      containers:
+      - name: log-service
+        image: 949019836804.dkr.ecr.ap-northeast-2.amazonaws.com/elice-devops-prod-log-service:prod-20250712-184430-0591c2a
+        ports:
+        - containerPort: 8080
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: SERVICE_NAME
+          value: "log-service"
+        - name: PORT
+          value: "8080"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "125m"
+          limits:
+            memory: "256Mi"
+            cpu: "250m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: log-service
+  namespace: elice-devops-prod
+  labels:
+    app: log-service
+spec:
+  selector:
+    app: log-service
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+  type: ClusterIP 

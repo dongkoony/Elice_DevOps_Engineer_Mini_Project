@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: product-service
+  namespace: elice-devops-prod
+  labels:
+    app: product-service
+    environment: production
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: product-service
+  template:
+    metadata:
+      labels:
+        app: product-service
+    spec:
+      containers:
+      - name: product-service
+        image: 949019836804.dkr.ecr.ap-northeast-2.amazonaws.com/elice-devops-prod-product-service:prod-20250712-184430-0591c2a
+        ports:
+        - containerPort: 8080
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: SERVICE_NAME
+          value: "product-service"
+        - name: PORT
+          value: "8080"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: product-db-secret
+              key: database-url
+        - name: DATABASE_USER
+          valueFrom:
+            secretKeyRef:
+              name: product-db-secret
+              key: username
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: product-db-secret
+              key: password
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "125m"
+          limits:
+            memory: "256Mi"
+            cpu: "250m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: product-service
+  namespace: elice-devops-prod
+  labels:
+    app: product-service
+spec:
+  selector:
+    app: product-service
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: product-db-secret
+  namespace: elice-devops-prod
+type: Opaque
+data:
+  database-url: cG9zdGdyZXNxbDovL2VsaWNlLWRldm9wcy1kZXYtcHJvZHVjdC1kYi5jZnNrbTBpb2dnaXYuYXAtbm9ydGhlYXN0LTIucmRzLmFtYXpvbmF3cy5jb206NTQzMi9wcm9kdWN0X2Ri
+  username: cHJvZHVjdF91c2Vy
+  password: cGFzc3dvcmQxMjM= 
