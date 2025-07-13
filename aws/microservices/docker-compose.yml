@@ -75,7 +75,7 @@ services:
     build: ./auth-service
     container_name: elice-auth-service
     ports:
-      - "8082:8080"
+      - "8092:8080"
     environment:
       - ENV=development
       - DATABASE_URL=postgresql://elice_user:elice_password@postgres:5432/elice_db
