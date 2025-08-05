@@ -1,0 +1,27 @@
+# Essential Pipeline Plugins
+workflow-aggregator
+pipeline-utility-steps
+build-timeout
+timestamper
+
+# SCM Integration
+git
+github
+github-branch-source
+
+# Docker & Kubernetes
+docker-workflow
+kubernetes
+credentials-binding
+
+# Code Quality & Testing
+junit
+htmlpublisher
+ws-cleanup
+ansicolor
+
+# Configuration as Code
+configuration-as-code
+
+# Monitoring (Essential)
+prometheus
