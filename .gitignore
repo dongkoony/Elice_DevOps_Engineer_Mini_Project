@@ -40,3 +40,4 @@ terraform.rc
 *.hcl
 *.log
 dist/
+CLAUDE.md
