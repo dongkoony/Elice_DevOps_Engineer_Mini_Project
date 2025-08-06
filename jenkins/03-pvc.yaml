@@ -1,0 +1,14 @@
+# 03-pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jenkins-pvc
+  namespace: jenkins
+spec:
+  storageClassName: jenkins-storage  # 위에서 정의한 StorageClass 사용
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+# selector.matchLabels 제거: 동적 프로비저닝 시 불필요

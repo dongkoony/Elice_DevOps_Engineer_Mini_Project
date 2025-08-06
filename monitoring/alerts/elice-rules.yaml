@@ -1,0 +1,186 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: elice-devops-alerts
+  namespace: monitoring
+  labels:
+    app: prometheus
+    role: alert-rules
+spec:
+  groups:
+    - name: elice.microservices
+      interval: 30s
+      rules:
+        - alert: ServiceDown
+          expr: up{job=~"elice-.*"} == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Service {{ $labels.job }} is down"
+            description: "Service {{ $labels.job }} on {{ $labels.instance }} has been down for more than 1 minute."
+        
+        - alert: HighErrorRate
+          expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High error rate on {{ $labels.job }}"
+            description: "Error rate is {{ $value | humanizePercentage }} on {{ $labels.job }}"
+        
+        - alert: HighLatency
+          expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 0.5
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High latency on {{ $labels.job }}"
+            description: "95th percentile latency is {{ $value }}s on {{ $labels.job }}"
+        
+        - alert: DatabaseConnectionFailure
+          expr: postgres_up == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Database connection failure"
+            description: "Cannot connect to PostgreSQL database {{ $labels.instance }}"
+        
+        - alert: HighMemoryUsage
+          expr: (container_memory_usage_bytes / container_spec_memory_limit_bytes) > 0.8
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High memory usage on {{ $labels.pod_name }}"
+            description: "Memory usage is {{ $value | humanizePercentage }} on pod {{ $labels.pod_name }}"
+        
+        - alert: HighCPUUsage
+          expr: rate(container_cpu_usage_seconds_total[5m]) > 0.8
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High CPU usage on {{ $labels.pod_name }}"
+            description: "CPU usage is {{ $value | humanizePercentage }} on pod {{ $labels.pod_name }}"
+
+    - name: elice.infrastructure
+      interval: 30s
+      rules:
+        - alert: NodeDown
+          expr: up{job="node-exporter"} == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Node {{ $labels.instance }} is down"
+            description: "Node {{ $labels.instance }} has been down for more than 1 minute."
+        
+        - alert: NodeHighCPU
+          expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High CPU usage on node {{ $labels.instance }}"
+            description: "CPU usage is {{ $value }}% on node {{ $labels.instance }}"
+        
+        - alert: NodeHighMemory
+          expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.8
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High memory usage on node {{ $labels.instance }}"
+            description: "Memory usage is {{ $value | humanizePercentage }} on node {{ $labels.instance }}"
+        
+        - alert: NodeDiskSpaceLow
+          expr: (1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)) > 0.8
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Low disk space on node {{ $labels.instance }}"
+            description: "Disk usage is {{ $value | humanizePercentage }} on {{ $labels.device }} at {{ $labels.instance }}"
+
+    - name: elice.kubernetes
+      interval: 30s
+      rules:
+        - alert: PodCrashLooping
+          expr: rate(kube_pod_container_status_restarts_total[5m]) > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Pod {{ $labels.pod }} is crash looping"
+            description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is restarting frequently"
+        
+        - alert: PodNotReady
+          expr: kube_pod_status_ready{condition="false"} == 1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod {{ $labels.pod }} not ready"
+            description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has been not ready for more than 5 minutes"
+        
+        - alert: DeploymentReplicasMismatch
+          expr: kube_deployment_spec_replicas != kube_deployment_status_ready_replicas
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Deployment {{ $labels.deployment }} replicas mismatch"
+            description: "Deployment {{ $labels.deployment }} in namespace {{ $labels.namespace }} does not have the expected number of replicas"
+
+    - name: elice.business
+      interval: 60s
+      rules:
+        - alert: LowUserRegistrations
+          expr: rate(user_registrations_total[1h]) < 5
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Low user registration rate"
+            description: "User registration rate is {{ $value }} per hour, below expected threshold"
+        
+        - alert: HighPaymentFailures
+          expr: rate(payment_failures_total[5m]) / rate(payment_attempts_total[5m]) > 0.1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "High payment failure rate"
+            description: "Payment failure rate is {{ $value | humanizePercentage }}"
+        
+        - alert: APIRateLimitHit
+          expr: rate(api_rate_limit_exceeded_total[5m]) > 0
+          for: 1m
+          labels:
+            severity: warning
+          annotations:
+            summary: "API rate limit exceeded"
+            description: "API rate limit is being exceeded on {{ $labels.endpoint }}"
+
+    - name: elice.deployment
+      interval: 30s
+      rules:
+        - alert: DeploymentFailed
+          expr: increase(jenkins_builds_failed_total[5m]) > 0
+          for: 0m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Deployment failed"
+            description: "Jenkins build {{ $labels.job }} failed"
+        
+        - alert: LongRunningDeployment
+          expr: jenkins_builds_duration_seconds > 1800
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Long running deployment"
+            description: "Deployment {{ $labels.job }} has been running for {{ $value }} seconds"
