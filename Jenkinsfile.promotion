@@ -1,0 +1,264 @@
+pipeline {
+    agent any
+    
+    parameters {
+        choice(
+            name: 'SOURCE_ENV',
+            choices: ['dev', 'staging'],
+            description: 'Source environment to promote from'
+        )
+        choice(
+            name: 'TARGET_ENV', 
+            choices: ['staging', 'production'],
+            description: 'Target environment to promote to'
+        )
+        string(
+            name: 'IMAGE_TAG',
+            defaultValue: 'latest',
+            description: 'Image tag to promote'
+        )
+        booleanParam(
+            name: 'RUN_SMOKE_TESTS',
+            defaultValue: true,
+            description: 'Run smoke tests after deployment'
+        )
+        booleanParam(
+            name: 'ROLLBACK_ON_FAILURE',
+            defaultValue: true,
+            description: 'Automatically rollback on deployment failure'
+        )
+    }
+    
+    environment {
+        DOCKER_REGISTRY = 'localhost:5000'
+        KUBECONFIG = credentials('kubeconfig')
+        SLACK_WEBHOOK = credentials('slack-webhook')
+    }
+    
+    stages {
+        stage('Validation') {
+            steps {
+                script {
+                    // Validate promotion path
+                    def validPromotions = [
+                        'dev->staging',
+                        'staging->production'
+                    ]
+                    def promotion = "${params.SOURCE_ENV}->${params.TARGET_ENV}"
+                    
+                    if (!validPromotions.contains(promotion)) {
+                        error("Invalid promotion path: ${promotion}. Valid paths: ${validPromotions}")
+                    }
+                    
+                    // Production requires approval
+                    if (params.TARGET_ENV == 'production') {
+                        input message: "Deploy to PRODUCTION?", 
+                              ok: "Deploy",
+                              submitterParameter: 'APPROVER'
+                        echo "Production deployment approved by: ${APPROVER}"
+                    }
+                }
+            }
+        }
+        
+        stage('Image Verification') {
+            steps {
+                script {
+                    // Verify image exists and scan for vulnerabilities
+                    sh """
+                        docker pull ${DOCKER_REGISTRY}/api-gateway:${params.IMAGE_TAG}
+                        
+                        # Security scan
+                        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+                            aquasec/trivy image --exit-code 1 --severity HIGH,CRITICAL \
+                            ${DOCKER_REGISTRY}/api-gateway:${params.IMAGE_TAG}
+                    """
+                }
+            }
+        }
+        
+        stage('Pre-deployment Tests') {
+            parallel {
+                stage('Configuration Validation') {
+                    steps {
+                        sh """
+                            # Validate Kubernetes manifests
+                            kubectl --dry-run=client apply -f environments/${params.TARGET_ENV}/
+                            
+                            # Validate Helm values
+                            helm template elice-microservices ./helm-chart \
+                                --values environments/${params.TARGET_ENV}/values.yaml \
+                                --dry-run > /dev/null
+                        """
+                    }
+                }
+                
+                stage('Database Migration Check') {
+                    when {
+                        expression { params.TARGET_ENV == 'production' }
+                    }
+                    steps {
+                        sh """
+                            # Check for pending migrations
+                            python scripts/check-migrations.py \
+                                --environment ${params.TARGET_ENV} \
+                                --dry-run
+                        """
+                    }
+                }
+            }
+        }
+        
+        stage('Backup Current State') {
+            when {
+                expression { params.TARGET_ENV == 'production' }
+            }
+            steps {
+                sh """
+                    # Create snapshot of current deployment
+                    kubectl get all -n elice-devops-${params.TARGET_ENV} \
+                        -o yaml > backup-${params.TARGET_ENV}-${BUILD_NUMBER}.yaml
+                    
+                    # Database backup
+                    python scripts/backup-database.py \
+                        --environment ${params.TARGET_ENV} \
+                        --tag "pre-deploy-${BUILD_NUMBER}"
+                """
+            }
+        }
+        
+        stage('Deploy to Target Environment') {
+            steps {
+                script {
+                    try {
+                        sh """
+                            # Update image tags in deployment files
+                            sed -i "s|IMAGE_TAG_PLACEHOLDER|${DOCKER_REGISTRY}/api-gateway:${params.IMAGE_TAG}|g" \
+                                environments/${params.TARGET_ENV}/*.yaml
+                            
+                            # Deploy using Helm
+                            helm upgrade --install elice-microservices ./helm-chart \
+                                --namespace elice-devops-${params.TARGET_ENV} \
+                                --values environments/${params.TARGET_ENV}/values.yaml \
+                                --set image.tag=${params.IMAGE_TAG} \
+                                --wait --timeout=10m
+                        """
+                    } catch (Exception e) {
+                        if (params.ROLLBACK_ON_FAILURE) {
+                            echo "Deployment failed, initiating rollback..."
+                            sh "helm rollback elice-microservices --namespace elice-devops-${params.TARGET_ENV}"
+                        }
+                        throw e
+                    }
+                }
+            }
+        }
+        
+        stage('Post-deployment Verification') {
+            parallel {
+                stage('Health Checks') {
+                    steps {
+                        script {
+                            timeout(time: 5, unit: 'MINUTES') {
+                                sh """
+                                    # Wait for pods to be ready
+                                    kubectl wait --for=condition=ready pod \
+                                        -l app=api-gateway \
+                                        -n elice-devops-${params.TARGET_ENV} \
+                                        --timeout=300s
+                                    
+                                    # Health check
+                                    kubectl port-forward -n elice-devops-${params.TARGET_ENV} \
+                                        svc/api-gateway 8080:8080 &
+                                    sleep 5
+                                    curl -f http://localhost:8080/health
+                                """
+                            }
+                        }
+                    }
+                }
+                
+                stage('Smoke Tests') {
+                    when {
+                        expression { params.RUN_SMOKE_TESTS }
+                    }
+                    steps {
+                        sh """
+                            # Run environment-specific smoke tests
+                            python -m pytest tests/smoke/ \
+                                --environment=${params.TARGET_ENV} \
+                                --base-url=http://api-gateway.elice-devops-${params.TARGET_ENV}.svc.cluster.local \
+                                -v
+                        """
+                    }
+                }
+            }
+        }
+        
+        stage('Performance Baseline') {
+            when {
+                expression { params.TARGET_ENV == 'production' }
+            }
+            steps {
+                sh """
+                    # Run performance tests and compare to baseline
+                    python scripts/performance-test.py \
+                        --environment ${params.TARGET_ENV} \
+                        --baseline-comparison \
+                        --report-format json \
+                        --output performance-report-${BUILD_NUMBER}.json
+                """
+            }
+        }
+    }
+    
+    post {
+        success {
+            script {
+                def message = """
+                    ✅ *Deployment Successful*
+                    
+                    *Environment:* ${params.TARGET_ENV}
+                    *Image:* ${params.IMAGE_TAG}
+                    *Build:* ${BUILD_NUMBER}
+                    *Approved by:* ${env.APPROVER ?: 'Automated'}
+                    
+                    *Services:* All healthy
+                    *Tests:* ${params.RUN_SMOKE_TESTS ? 'Passed' : 'Skipped'}
+                """
+                
+                sh """
+                    curl -X POST -H 'Content-type: application/json' \
+                        --data '{"text":"${message}"}' \
+                        ${SLACK_WEBHOOK}
+                """
+            }
+        }
+        
+        failure {
+            script {
+                def message = """
+                    ❌ *Deployment Failed*
+                    
+                    *Environment:* ${params.TARGET_ENV}
+                    *Image:* ${params.IMAGE_TAG}
+                    *Build:* ${BUILD_NUMBER}
+                    *Rollback:* ${params.ROLLBACK_ON_FAILURE ? 'Executed' : 'Disabled'}
+                    
+                    Check Jenkins logs for details.
+                """
+                
+                sh """
+                    curl -X POST -H 'Content-type: application/json' \
+                        --data '{"text":"${message}"}' \
+                        ${SLACK_WEBHOOK}
+                """
+            }
+        }
+        
+        always {
+            archiveArtifacts artifacts: '**/*report*.json,**/*backup*.yaml', allowEmptyArchive: true
+            cleanWs()
+        }
+    }
+}

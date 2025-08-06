@@ -1,0 +1,94 @@
+# Production Environment Configuration
+environment: production
+namespace: elice-devops-prod
+
+# Resource Limits (Production-grade)
+resources:
+  requests:
+    cpu: "500m"
+    memory: "512Mi"
+  limits:
+    cpu: "1000m"
+    memory: "1Gi"
+
+# High Availability Scaling
+replicaCount: 3
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 60
+  targetMemoryUtilizationPercentage: 70
+
+# Database Configuration (Multi-AZ)
+database:
+  host: "elice-prod-cluster.cluster-abc.us-west-2.rds.amazonaws.com"
+  port: 5432
+  ssl_mode: "require"
+  max_connections: 20
+  connection_pool: true
+  read_replica_host: "elice-prod-reader.cluster-abc.us-west-2.rds.amazonaws.com"
+
+# External Services
+services:
+  minio:
+    enabled: false  # Use S3 in production
+  s3:
+    enabled: true
+    bucket: "elice-prod-storage"
+    region: "us-west-2"
+  redis:
+    enabled: true
+    host: "elice-prod-redis.cache.amazonaws.com"
+    port: 6379
+    cluster_mode: true
+
+# Security (Hardened)
+security:
+  networkPolicies: true
+  podSecurityPolicy: true
+  serviceAccount: "elice-production-sa"
+  encryptionAtRest: true
+  mTLS: true
+  rbac:
+    enabled: true
+
+# Monitoring (Full observability)
+monitoring:
+  enabled: true
+  metrics:
+    enabled: true
+    path: "/metrics"
+    scrapeInterval: "15s"
+  logging:
+    level: "WARN"
+    structured: true
+    retention: "90d"
+  traces:
+    enabled: true
+    samplingRate: 0.01
+  alerts:
+    enabled: true
+    pagerDuty: true
+
+# Backup & Recovery
+backup:
+  enabled: true
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  retention: "30d"
+  crossRegion: true
+
+# Feature Flags (Conservative)
+features:
+  newUserOnboarding: false
+  advancedAnalytics: true
+  experimentalFeatures: false
+
+# Performance
+performance:
+  caching:
+    enabled: true
+    ttl: "1h"
+  cdn:
+    enabled: true
+    provider: "cloudfront"

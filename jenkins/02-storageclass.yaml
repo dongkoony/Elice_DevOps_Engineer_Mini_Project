@@ -1,0 +1,22 @@
+# 파일: 02-storageclass.yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: jenkins-storage
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+# ┌───────────────────────────────────────────────────────────────────────────────
+# │ 로컬 개발 환경(Kind/Minikube)용 경량 프로비저너
+# │ - rancher.io/local-path: 노드 로컬 호스트경로에 PV를 자동 생성/바인딩
+# └───────────────────────────────────────────────────────────────────────────────
+provisioner: rancher.io/local-path
+volumeBindingMode: WaitForFirstConsumer  # 파드 스케줄 후에 볼륨 바인딩
+allowVolumeExpansion: true                # 런타임 PVC 크기 확장 허용
+
+# ┌───────────────────────────────────────────────────────────────────────────────
+# │ (참고) 클라우드 환경용 예시:
+# │ provisioner: kubernetes.io/aws-ebs
+# │ reclaimPolicy: Delete             # PVC 삭제 시 EBS 볼륨도 자동 삭제
+# │ volumeBindingMode: WaitForFirstConsumer
+# │ allowVolumeExpansion: true
+# └───────────────────────────────────────────────────────────────────────────────

@@ -3,9 +3,10 @@ FROM python:3.11-slim as builder
 
 # Set build-time environment variables
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PYTHONDONTWRITEBYTECODE=1
+
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
@@ -13,13 +14,16 @@ RUN apt-get update && apt-get install -y \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Create and activate virtual environment
-RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+# Set working directory
+WORKDIR /app
 
-# Copy requirements first for better caching
-COPY requirements.txt .
-RUN pip install -r requirements.txt
+# Copy project files for dependency resolution
+COPY pyproject.toml ./
+COPY requirements.lock ./
+
+# Create virtual environment and install dependencies
+RUN uv venv /opt/venv && \
+    uv pip install -r requirements.lock
 
 # Production stage
 FROM python:3.11-slim as production
