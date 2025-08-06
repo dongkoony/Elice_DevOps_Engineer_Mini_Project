@@ -1,0 +1,7 @@
+# 00-namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: jenkins
+  labels:
+    name: jenkins  # jenkins 네임스페이스 식별용 라벨

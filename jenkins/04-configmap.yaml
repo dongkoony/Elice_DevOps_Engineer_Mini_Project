@@ -1,0 +1,27 @@
+# 04-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jenkins-config
+  namespace: jenkins
+data:
+  jenkins.yaml: |
+    jenkins:
+      systemMessage: "Elice DevOps CI/CD Pipeline - Production Ready"
+      numExecutors: 2
+      mode: NORMAL
+      
+      securityRealm:
+        local:
+          allowsSignup: false
+          users:
+            - id: "admin"
+              password: "${JENKINS_ADMIN_PASSWORD:-elice_admin}"
+      
+      authorizationStrategy:
+        loggedInUsersCanDoAnything: {}
+          
+    unclassified:
+      location:
+        url: "http://localhost:8080/"
+        adminAddress: "devops@elice.io"

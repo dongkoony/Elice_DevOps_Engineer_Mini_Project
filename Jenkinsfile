@@ -1,0 +1,177 @@
+pipeline {
+    agent any
+    
+    environment {
+        DOCKER_REGISTRY = 'localhost:5000'
+        IMAGE_NAME = 'api-gateway'
+        IMAGE_TAG = "${BUILD_NUMBER}-${GIT_COMMIT.substring(0,7)}"
+        KUBECONFIG = credentials('kubeconfig')
+        UV_CACHE_DIR = "${WORKSPACE}/.uv-cache"
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+                script {
+                    env.GIT_COMMIT = sh(returnStdout: true, script: 'git rev-parse HEAD').trim()
+                }
+            }
+        }
+        
+        stage('Install uv') {
+            steps {
+                sh '''
+                    curl -LsSf https://astral.sh/uv/install.sh | sh
+                    export PATH="$HOME/.local/bin:$PATH"
+                    uv --version
+                '''
+            }
+        }
+        
+        stage('Python Setup') {
+            steps {
+                dir('aws/microservices/api-gateway') {
+                    sh '''
+                        export PATH="$HOME/.local/bin:$PATH"
+                        uv venv
+                        source .venv/bin/activate
+                        uv pip install -e .[dev]
+                    '''
+                }
+            }
+        }
+        
+        stage('Lock Dependencies') {
+            steps {
+                dir('aws/microservices/api-gateway') {
+                    sh '''
+                        export PATH="$HOME/.local/bin:$PATH"
+                        source .venv/bin/activate
+                        uv pip compile pyproject.toml -o requirements.lock
+                        uv pip compile pyproject.toml --extra dev -o requirements-dev.lock
+                    '''
+                }
+            }
+        }
+        
+        stage('Code Quality') {
+            parallel {
+                stage('Lint') {
+                    steps {
+                        dir('aws/microservices/api-gateway') {
+                            sh '''
+                                export PATH="$HOME/.local/bin:$PATH"
+                                source .venv/bin/activate
+                                ruff check . --output-format=github
+                                ruff format --check .
+                            '''
+                        }
+                    }
+                }
+                stage('Type Check') {
+                    steps {
+                        dir('aws/microservices/api-gateway') {
+                            sh '''
+                                export PATH="$HOME/.local/bin:$PATH"
+                                source .venv/bin/activate
+                                mypy . --install-types --non-interactive
+                            '''
+                        }
+                    }
+                }
+                stage('Security Scan') {
+                    steps {
+                        dir('aws/microservices/api-gateway') {
+                            sh '''
+                                export PATH="$HOME/.local/bin:$PATH"
+                                source .venv/bin/activate
+                                bandit -r . -f json -o bandit-report.json || true
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Test') {
+            steps {
+                dir('aws/microservices/api-gateway') {
+                    sh '''
+                        export PATH="$HOME/.local/bin:$PATH"
+                        source .venv/bin/activate
+                        pytest --cov=. --cov-report=xml --cov-report=html --junitxml=test-results.xml
+                    '''
+                }
+            }
+            post {
+                always {
+                    publishTestResults testResultsPattern: 'aws/microservices/api-gateway/test-results.xml'
+                    publishCoverage adapters: [coberturaAdapter('aws/microservices/api-gateway/coverage.xml')]
+                }
+            }
+        }
+        
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    dir('aws/microservices/api-gateway') {
+                        def image = docker.build("${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}")
+                        docker.withRegistry("http://${DOCKER_REGISTRY}") {
+                            image.push()
+                            image.push("latest")
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy to Dev') {
+            when {
+                branch 'main'
+            }
+            steps {
+                sh '''
+                    sed -i "s|IMAGE_TAG_PLACEHOLDER|${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}|g" aws/kubernetes/dev/api-gateway-deployment.yaml
+                    kubectl apply -f aws/kubernetes/dev/ --namespace=elice-devops-dev
+                '''
+            }
+        }
+        
+        stage('Health Check') {
+            when {
+                branch 'main'
+            }
+            steps {
+                script {
+                    timeout(time: 5, unit: 'MINUTES') {
+                        sh '''
+                            until kubectl get pods -n elice-devops-dev -l app=api-gateway -o jsonpath='{.items[0].status.phase}' | grep Running; do
+                                echo "Waiting for pod to be ready..."
+                                sleep 10
+                            done
+                            
+                            POD_NAME=$(kubectl get pods -n elice-devops-dev -l app=api-gateway -o jsonpath='{.items[0].metadata.name}')
+                            kubectl port-forward -n elice-devops-dev $POD_NAME 8080:8080 &
+                            sleep 5
+                            curl -f http://localhost:8080/health || exit 1
+                        '''
+                    }
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            archiveArtifacts artifacts: '**/requirements*.lock', allowEmptyArchive: true
+            cleanWs()
+        }
+        success {
+            echo "Pipeline succeeded! Image: ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+        }
+        failure {
+            echo "Pipeline failed. Check logs for details."
+        }
+    }
+}
