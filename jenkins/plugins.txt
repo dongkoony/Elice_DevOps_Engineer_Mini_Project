@@ -1,27 +1,60 @@
 # Essential Pipeline Plugins
-workflow-aggregator
-pipeline-utility-steps
-build-timeout
-timestamper
+workflow-aggregator            # 파이프라인 기본 기능 및 멀티브랜치 통합 제공
+pipeline-utility-steps         # 파일 처리, 셸 실행 등 다양한 유틸리티 스텝 제공
+build-timeout                  # 파이프라인 빌드 타임아웃 설정 지원
+timestamper                    # 빌드 로그에 타임스탬프 추가
 
 # SCM Integration
-git
-github
-github-branch-source
+git                            # Git 저장소 연동
+github                         # GitHub 저장소 연동
+github-branch-source           # GitHub 멀티브랜치 파이프라인 소스 지원
 
 # Docker & Kubernetes
-docker-workflow
-kubernetes
-credentials-binding
+docker-workflow                # Docker 명령어를 파이프라인에서 사용 가능
+kubernetes                     # Kubernetes 에이전트(파드) 자동 프로비저닝
+credentials-binding            # 파이프라인 단계에서 자격증명 바인딩
 
 # Code Quality & Testing
-junit
-htmlpublisher
-ws-cleanup
-ansicolor
+junit                          # JUnit 테스트 결과 리포트 처리
+htmlpublisher                  # HTML 형식의 리포트 게시
+ws-cleanup                     # 빌드 후 워크스페이스 자동 정리
+ansicolor                      # 콘솔 로그 ANSI 색상 지원
 
 # Configuration as Code
-configuration-as-code
+configuration-as-code          # Jenkins 설정을 코드로 관리(CASC)
+
+# Matrix Authorization Strategy
+matrix-auth                    # Global Matrix Authorization Strategy 지원
 
 # Monitoring (Essential)
-prometheus
+prometheus                     # Prometheus 메트릭 엔드포인트 노출
+
+# Job DSL: jobs: 블록 실행용
+job-dsl                        # Job DSL 스크립트로 잡 생성 자동화
+
+# Multibranch 관련 DSL 및 파이프라인 모델 정의
+pipeline-model-definition      # Jenkinsfile 모델 정의 및 확장
+
+# GitHub 웹훅 지원 강화
+github-oauth                   # GitHub OAuth 인증 지원
+scm-api                        # SCM 공통 API 제공 (다양한 SCM 플러그인 의존)
+
+# Slack 알림 (slackNotifier 등 사용 시)
+slack                          # Slack 채널로 빌드/알림 전송
+
+# 이메일 알림 (Mailer/Email Extension 사용 시)
+mailer                         # 기본 메일 알림 기능
+email-ext                      # 확장 이메일 알림(템플릿, 첨부 등)
+
+# Credentials 고도화
+credentials                    # Jenkins 자격증명 관리 기능
+
+# Kubernetes 클라우드 플러그인 의존성
+kubernetes-credentials         # Kubernetes 클라우드용 자격증명 통합
+plain-credentials              # 단순 텍스트, 비밀번호, SSH 키 등 저장 지원
+
+# Cleanup 및 기타 유틸
+cloudbees-folder               # 폴더(디렉터리) 구조로 잡 그룹화
+script-security                # Groovy 스크립트 승인 및 샌드박스 관리
+
+# GitHub Branch Source 추가 기능은 github-branch-source에 포함됨
