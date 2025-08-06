@@ -1,0 +1,56 @@
+# 01-rbac.yaml
+
+# ServiceAccount: Jenkins가 클러스터 API를 호출할 때 사용할 계정
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jenkins-sa
+  namespace: jenkins
+
+---
+# ClusterRole: Jenkins가 필요한 리소스에 접근할 수 있도록 최소 권한 설정
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: jenkins-cluster-role
+rules:
+  - apiGroups: [""]
+    resources:
+      - pods
+      - services
+      - endpoints
+      - persistentvolumeclaims
+      - events
+      - configmaps
+      - secrets
+      - nodes
+    verbs: ["*"]
+  - apiGroups: ["apps"]
+    resources:
+      - deployments
+      - daemonsets
+      - replicasets
+      - statefulsets
+    verbs: ["*"]
+  - apiGroups: ["extensions"]
+    resources:
+      - deployments
+      - daemonsets
+      - replicasets
+      - ingresses
+    verbs: ["*"]
+
+---
+# ClusterRoleBinding: ServiceAccount에 ClusterRole 할당
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: jenkins-cluster-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: jenkins-cluster-role
+subjects:
+  - kind: ServiceAccount
+    name: jenkins-sa
+    namespace: jenkins

@@ -40,3 +40,5 @@ terraform.rc
 *.hcl
 *.log
 dist/
+CLAUDE.md
+.claude/settings.local.json
