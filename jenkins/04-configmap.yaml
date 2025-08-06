@@ -8,20 +8,111 @@ data:
   jenkins.yaml: |
     jenkins:
       systemMessage: "Elice DevOps CI/CD Pipeline - Production Ready"
-      numExecutors: 2
+      numExecutors: 4
       mode: NORMAL
-      
+      scmCheckoutRetryCount: 3
+
       securityRealm:
         local:
           allowsSignup: false
           users:
             - id: "admin"
               password: "${JENKINS_ADMIN_PASSWORD:-elice_admin}"
-      
+              
       authorizationStrategy:
-        loggedInUsersCanDoAnything: {}
-          
+        globalMatrix:
+          permissions:
+            - "Overall/Administer:admin"
+            - "Overall/Read:authenticated"
+            - "Job/Build:authenticated"
+            - "Job/Cancel:authenticated"
+            - "Job/Read:authenticated"
+
+      remotingSecurity:
+        enabled: true
+
+      globalNodeProperties:
+        - envVars:
+            env:
+              - key: "UV_CACHE_DIR"
+                value: "/var/jenkins_cache/uv"
+              - key: "DOCKER_REGISTRY"
+                value: "localhost:5000"
+
+    tool:
+      git:
+        installations:
+          - name: "Default"
+            home: "/usr/bin/git"
+
+    credentials:
+      system:
+        domainCredentials:
+          - credentials:
+              - usernamePassword:
+                  scope: GLOBAL
+                  id: "github-token"
+                  username: "elice-devops"
+                  password: "${GITHUB_TOKEN}"
+                  description: "GitHub API Token"
+              - usernamePassword:
+                  scope: GLOBAL
+                  id: "docker-registry-creds"
+                  username: "admin"
+                  password: "admin"
+                  description: "Local Docker Registry"
+              - string:
+                  scope: GLOBAL
+                  id: "slack-webhook"
+                  secret: "${SLACK_WEBHOOK_URL}"
+                  description: "Slack Notifications"
+
+    jobs:
+      - script: |
+          multibranchPipelineJob('elice-microservices') {
+            displayName('Elice Microservices Pipeline')
+            description('Multi-branch pipeline for all microservices')
+            branchSources {
+              github {
+                id('elice-devops-repo')
+                repoOwner('elice-devops')
+                repository('microservices-platform')
+                credentialsId('github-token')
+                includes('main', 'develop', 'feature/*', 'release/*')
+              }
+            }
+            configure { node ->
+              def traits = node / 'sources' / 'data' / 'jenkins.branch.BranchSource' / 'source' / 'traits'
+              traits << 'org.jenkinsci.plugins.github__branch__source.ForkPullRequestDiscoveryTrait' {
+                strategyId(1)
+                trust(class: 'org.jenkinsci.plugins.github_branch_source.ForkPullRequestDiscoveryTrait$TrustPermission')
+              }
+            }
+          }
+
     unclassified:
       location:
         url: "http://localhost:8080/"
         adminAddress: "devops@elice.io"
+
+      buildDiscarders:
+        configuredBuildDiscarders:
+          - "jobBuildDiscarder":
+              discarder:
+                logRotator:
+                  daysToKeepStr: "30"
+                  numToKeepStr: "100"
+                  artifactDaysToKeepStr: "7"
+                  artifactNumToKeepStr: "10"
+
+      slackNotifier:
+        baseUrl: "${SLACK_WEBHOOK_URL}"
+        teamDomain: "elice-devops"
+        room: "#devops-alerts"
+        sendAs: "Jenkins"
+
+      prometheus:
+        path: "/prometheus"
+        defaultNamespace: "jenkins"
+        jobAttributeName: "jenkins_job"
+        useAuthenticatedEndpoint: false
