@@ -36,9 +36,10 @@ USER jenkins
 COPY plugins.txt /usr/share/jenkins/ref/plugins.txt
 RUN jenkins-plugin-cli -f /usr/share/jenkins/ref/plugins.txt
 
-# Copy JCasC configuration
-COPY jenkins.yaml /var/jenkins_home/casc_configs/jenkins.yaml
-ENV CASC_JENKINS_CONFIG=/var/jenkins_home/casc_configs/jenkins.yaml
+# JCasC configuration will be mounted from ConfigMap at runtime
+# Create casc_configs directory for mounted configurations
+RUN mkdir -p /var/jenkins_home/casc_configs
+ENV CASC_JENKINS_CONFIG=/var/jenkins_home/casc_configs/
 
 # Skip setup wizard
 ENV JAVA_OPTS="-Djenkins.install.runSetupWizard=false"
