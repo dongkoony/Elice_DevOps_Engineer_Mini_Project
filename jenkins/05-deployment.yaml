@@ -26,8 +26,8 @@ spec:
         prometheus.io/path: "/prometheus"
     spec:
       serviceAccountName: jenkins-sa
-      imagePullSecrets:
-        - name: registry-credentials  # 사전에 생성된 레지스트리 시크릿
+      # imagePullSecrets: 로컬 개발환경에서는 불필요
+      # - name: registry-credentials
       securityContext:
         fsGroup: 1000
         runAsUser: 1000
@@ -42,7 +42,7 @@ spec:
             runAsUser: 0
       containers:
         - name: jenkins
-          image: myorg/elice-jenkins:v20250805-abcdefg  # 불변 태그 사용
+          image: elice-jenkins:latest  # 로컬 개발용
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
