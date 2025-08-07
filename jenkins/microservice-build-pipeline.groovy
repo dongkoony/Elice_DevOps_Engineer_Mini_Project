@@ -47,7 +47,7 @@ pipeline {
         DOCKER_REGISTRY = "${env.DOCKER_REGISTRY ?: 'localhost:5000'}"
         SERVICE_PATH = "aws/microservices/${params.SERVICE_NAME}"
         IMAGE_NAME = "${DOCKER_REGISTRY}/${params.SERVICE_NAME}"
-        FULL_IMAGE_TAG = "${params.ENVIRONMENT}-${env.BUILD_NUMBER}-${env.GIT_COMMIT?.take(7) ?: 'unknown'}"
+        FULL_IMAGE_TAG = "${params.ENVIRONMENT}-${env.BUILD_NUMBER}-${env.GIT_COMMIT ? env.GIT_COMMIT.take(7) : 'unknown'}"
     }
     
     options {
@@ -113,7 +113,7 @@ pipeline {
         
         stage('🧪 코드 품질 검사') {
             when {
-                not { params.SKIP_TESTS }
+                expression { params.SKIP_TESTS != true }
             }
             parallel {
                 stage('린팅') {
@@ -175,7 +175,7 @@ pipeline {
                             --label "service=${params.SERVICE_NAME}" \\
                             --label "environment=${params.ENVIRONMENT}" \\
                             --label "build-number=${env.BUILD_NUMBER}" \\
-                            --label "git-commit=\${GIT_COMMIT:-unknown}" \\
+                            --label "git-commit=${env.GIT_COMMIT ?: 'unknown'}" \\
                             .
                         
                         echo "✅ Docker 이미지 빌드 완료"
@@ -187,7 +187,7 @@ pipeline {
         
         stage('🔐 보안 검사') {
             when {
-                not { params.SKIP_TESTS }
+                expression { params.SKIP_TESTS != true }
             }
             steps {
                 sh """
