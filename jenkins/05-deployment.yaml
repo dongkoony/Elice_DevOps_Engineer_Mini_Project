@@ -31,6 +31,7 @@ spec:
       securityContext:
         fsGroup: 1000
         runAsUser: 1000
+        supplementalGroups: [117]  # Docker 그룹 추가
       initContainers:
         - name: fix-permissions
           image: busybox:1.35
