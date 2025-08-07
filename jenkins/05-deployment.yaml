@@ -43,7 +43,7 @@ spec:
             runAsUser: 0
       containers:
         - name: jenkins
-          image: donghyeonshin/elice-jenkins:v1.0.0  # 커스텀 Jenkins 이미지
+          image: donghyeonshin/elice-jenkins:v1.0.0  # 기존 Jenkins 이미지
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
