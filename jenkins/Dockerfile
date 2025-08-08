@@ -13,9 +13,11 @@ RUN apt-get update && apt-get install -y \
     docker.io \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv globally
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV PATH="/root/.local/bin:$PATH"
+# Install uv globally for all users
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    cp /root/.local/bin/uv /usr/local/bin/uv && \
+    cp /root/.local/bin/uvx /usr/local/bin/uvx && \
+    chmod +x /usr/local/bin/uv /usr/local/bin/uvx
 
 # Install kubectl
 RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" \

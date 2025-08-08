@@ -42,3 +42,9 @@ terraform.rc
 dist/
 CLAUDE.md
 .claude/settings.local.json
+*.key
+*.csr
+*.crt
+*.conf
+
+registry-certs/
