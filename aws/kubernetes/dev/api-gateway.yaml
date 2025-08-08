@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
       - name: api-gateway
-        image: 949019836804.dkr.ecr.ap-northeast-2.amazonaws.com/elice-devops-dev-api-gateway:dev-20250712-182016-0591c2a
+        image: 172.18.0.3:5000/api-gateway:dev-10-51b78e3
         ports:
         - containerPort: 8080
         env:
