@@ -31,6 +31,7 @@ spec:
       securityContext:
         fsGroup: 1000
         runAsUser: 1000
+        supplementalGroups: [117]  # Docker 그룹 추가
       initContainers:
         - name: fix-permissions
           image: busybox:1.35
@@ -42,7 +43,7 @@ spec:
             runAsUser: 0
       containers:
         - name: jenkins
-          image: donghyeonshin/elice-jenkins:v1.0.0  # 기존 정상 동작 이미지
+          image: donghyeonshin/elice-jenkins:v1.0.0  # 기존 Jenkins 이미지
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
