@@ -313,36 +313,31 @@ for root, dirs, files in os.walk('.'):
                 script {
                     echo "=== Kubernetes 매니페스트 업데이트 시작 ==="
                     
-                    // 로컬 GitOps 스크립트 경로
-                    def gitopsScript = "./scripts/jenkins-gitops-integration.sh"
-                    def gitopsCmd = "${gitopsScript} ${params.SERVICE_NAME} ${env.FULL_IMAGE_TAG} ${params.ENVIRONMENT}"
+                    // 매니페스트 파일 경로 설정
+                    def manifestPath = "aws/kubernetes/${params.ENVIRONMENT}/${params.SERVICE_NAME}.yaml"
+                    def newImageTag = "${env.IMAGE_NAME}:${env.FULL_IMAGE_TAG}"
                     
-                    // 옵션 추가
-                    gitopsCmd += " --registry ${env.DOCKER_REGISTRY}"
-                    gitopsCmd += " --git-user '${env.GIT_USER_NAME}'"
-                    gitopsCmd += " --git-email '${env.GIT_USER_EMAIL}'"
+                    echo "매니페스트 파일: ${manifestPath}"
+                    echo "새 이미지 태그: ${newImageTag}"
                     
-                    // PR 생성 조건
-                    if (params.CREATE_PR == true || params.ENVIRONMENT in ['stg', 'prod']) {
-                        gitopsCmd += " --pr"
-                        echo "Pull Request 생성 모드로 GitOps 업데이트"
-                    }
-                    
-                    echo "GitOps 명령: ${gitopsCmd}"
-                    
-                    // GitOps 스크립트 실행
+                    // Kubernetes 매니페스트 업데이트
                     sh """
-                        # GitOps 스크립트 경로 확인
-                        if [ ! -f "${gitopsScript}" ]; then
-                            echo "❌ GitOps 스크립트를 찾을 수 없습니다: ${gitopsScript}"
+                        # 매니페스트 파일 존재 확인
+                        if [ ! -f "${manifestPath}" ]; then
+                            echo "❌ 매니페스트 파일을 찾을 수 없습니다: ${manifestPath}"
                             exit 1
                         fi
                         
-                        # 스크립트 실행 권한 확인
-                        chmod +x "${gitopsScript}"
+                        echo "현재 매니페스트 이미지 정보:"
+                        grep "image:" "${manifestPath}" || echo "이미지 정보 없음"
                         
-                        # GitOps 업데이트 실행
-                        ${gitopsCmd}
+                        # 이미지 태그 업데이트
+                        sed -i "s|image: localhost:5000/${params.SERVICE_NAME}:.*|image: ${newImageTag}|g" "${manifestPath}"
+                        
+                        echo "업데이트된 매니페스트 이미지 정보:"
+                        grep "image:" "${manifestPath}"
+                        
+                        echo "✅ 매니페스트 파일 업데이트 완료"
                     """
                     
                     // 환경별 안내 메시지
