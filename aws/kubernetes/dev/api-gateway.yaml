@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
       - name: api-gateway
-        image: localhost:5000/api-gateway:dev-build-123-abc1234
+        image: localhost:5000/api-gateway:dev-10-51b78e3
         ports:
         - containerPort: 8080
         env:
