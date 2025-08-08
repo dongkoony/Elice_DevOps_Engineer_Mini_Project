@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
       - name: api-gateway
-        image: registry:5000/api-gateway:dev-10-51b78e3
+        image: 172.18.0.3:5000/api-gateway:dev-10-51b78e3
         ports:
         - containerPort: 8080
         env:
