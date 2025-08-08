@@ -52,13 +52,10 @@ pipeline {
         DOCKER_REGISTRY = "${env.DOCKER_REGISTRY ?: 'localhost:5000'}"
         SERVICE_PATH = "aws/microservices/${params.SERVICE_NAME}"
         IMAGE_NAME = "${DOCKER_REGISTRY}/${params.SERVICE_NAME}"
-        FULL_IMAGE_TAG = "${params.ENVIRONMENT}-${env.BUILD_NUMBER}-${env.GIT_COMMIT ? env.GIT_COMMIT.take(7) : 'unknown'}"
         
         // GitOps 설정
-        GITOPS_REPO = "/home/sdhcokr/project/microservices-gitops"
-        GITOPS_BRANCH = "main"
         GIT_USER_NAME = "jenkins-ci"
-        GIT_USER_EMAIL = "jenkins@elice.io"
+        GIT_USER_EMAIL = "dhyeon.shin@icloud.com"
     }
     
     options {
@@ -69,8 +66,22 @@ pipeline {
     }
     
     stages {
+        stage('📥 소스코드 체크아웃') {
+            steps {
+                deleteDir()
+                checkout scm
+                echo "✅ Git 소스코드 체크아웃 완료"
+            }
+        }
+        
         stage('🔍 준비 및 검증') {
             steps {
+                script {
+                    // FULL_IMAGE_TAG 동적 생성
+                    def gitCommitShort = env.GIT_COMMIT ? env.GIT_COMMIT.take(7) : 'unknown'
+                    env.FULL_IMAGE_TAG = "${params.ENVIRONMENT}-${env.BUILD_NUMBER}-${gitCommitShort}"
+                }
+                
                 echo "=== Elice DevOps GitOps 마이크로서비스 파이프라인 ==="
                 echo "서비스: ${params.SERVICE_NAME}"
                 echo "환경: ${params.ENVIRONMENT}"
@@ -300,15 +311,14 @@ for root, dirs, files in os.walk('.'):
             }
             steps {
                 script {
-                    echo "=== GitOps 저장소 업데이트 시작 ==="
+                    echo "=== Kubernetes 매니페스트 업데이트 시작 ==="
                     
-                    // 환경별 분기 처리
-                    def gitopsScript = "${env.GITOPS_REPO}/scripts/jenkins-gitops-integration.sh"
+                    // 로컬 GitOps 스크립트 경로
+                    def gitopsScript = "./scripts/jenkins-gitops-integration.sh"
                     def gitopsCmd = "${gitopsScript} ${params.SERVICE_NAME} ${env.FULL_IMAGE_TAG} ${params.ENVIRONMENT}"
                     
                     // 옵션 추가
                     gitopsCmd += " --registry ${env.DOCKER_REGISTRY}"
-                    gitopsCmd += " --gitops-repo ${env.GITOPS_REPO}"
                     gitopsCmd += " --git-user '${env.GIT_USER_NAME}'"
                     gitopsCmd += " --git-email '${env.GIT_USER_EMAIL}'"
                     
@@ -322,7 +332,7 @@ for root, dirs, files in os.walk('.'):
                     
                     // GitOps 스크립트 실행
                     sh """
-                        # GitOps 저장소 경로 확인
+                        # GitOps 스크립트 경로 확인
                         if [ ! -f "${gitopsScript}" ]; then
                             echo "❌ GitOps 스크립트를 찾을 수 없습니다: ${gitopsScript}"
                             exit 1
@@ -338,15 +348,15 @@ for root, dirs, files in os.walk('.'):
                     // 환경별 안내 메시지
                     switch(params.ENVIRONMENT) {
                         case 'dev':
-                            echo "✅ 개발 환경 GitOps 업데이트 완료"
-                            echo "ℹ️ ArgoCD에서 자동으로 동기화됩니다 (약 3분 소요)"
+                            echo "✅ 개발 환경 매니페스트 업데이트 완료"
+                            echo "ℹ️ kubectl apply로 즉시 배포하거나 ArgoCD 동기화 대기"
                             break
                         case 'stg':
-                            echo "✅ 스테이징 환경 GitOps 업데이트 완료"
-                            echo "⚠️ ArgoCD UI에서 수동으로 동기화 승인이 필요합니다"
+                            echo "✅ 스테이징 환경 매니페스트 업데이트 완료"
+                            echo "⚠️ 승인 후 수동 배포 권장"
                             break
                         case 'prod':
-                            echo "✅ 운영 환경 GitOps 업데이트 완료"
+                            echo "✅ 운영 환경 매니페스트 업데이트 완료"
                             echo "⚠️ Pull Request 검토 및 승인 후 배포하세요"
                             echo "🔐 운영 환경 배포는 추가 검토가 필요합니다"
                             break
