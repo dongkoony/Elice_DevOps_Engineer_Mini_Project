@@ -5,7 +5,6 @@ pipeline {
         DOCKER_REGISTRY = 'localhost:5000'
         IMAGE_NAME = 'api-gateway'
         IMAGE_TAG = "${BUILD_NUMBER}-${GIT_COMMIT.substring(0,7)}"
-        KUBECONFIG = credentials('kubeconfig')
         UV_CACHE_DIR = "${WORKSPACE}/.uv-cache"
     }
     
