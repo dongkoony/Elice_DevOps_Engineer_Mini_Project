@@ -144,18 +144,29 @@ pipeline {
             }
             steps {
                 script {
-                    timeout(time: 5, unit: 'MINUTES') {
-                        sh '''
-                            until kubectl get pods -n elice-devops-dev -l app=api-gateway -o jsonpath='{.items[0].status.phase}' | grep Running; do
-                                echo "Waiting for pod to be ready..."
-                                sleep 10
-                            done
-                            
-                            POD_NAME=$(kubectl get pods -n elice-devops-dev -l app=api-gateway -o jsonpath='{.items[0].metadata.name}')
-                            kubectl port-forward -n elice-devops-dev $POD_NAME 8080:8080 &
-                            sleep 5
-                            curl -f http://localhost:8080/health || exit 1
-                        '''
+                    // kubeconfig 확인 후 헬스체크 실행
+                    def kubeconfigExists = sh(
+                        script: 'kubectl cluster-info >/dev/null 2>&1',
+                        returnStatus: true
+                    ) == 0
+                    
+                    if (kubeconfigExists) {
+                        timeout(time: 5, unit: 'MINUTES') {
+                            sh '''
+                                until kubectl get pods -n elice-devops-dev -l app=api-gateway -o jsonpath='{.items[0].status.phase}' | grep Running; do
+                                    echo "Waiting for pod to be ready..."
+                                    sleep 10
+                                done
+                                
+                                POD_NAME=$(kubectl get pods -n elice-devops-dev -l app=api-gateway -o jsonpath='{.items[0].metadata.name}')
+                                kubectl port-forward -n elice-devops-dev $POD_NAME 8080:8080 &
+                                sleep 5
+                                curl -f http://localhost:8080/health || exit 1
+                            '''
+                        }
+                    } else {
+                        echo "⚠️ kubeconfig not configured - skipping health check"
+                        echo "Health check requires kubectl access to Kubernetes cluster"
                     }
                 }
             }
@@ -164,11 +175,21 @@ pipeline {
     
     post {
         always {
-            archiveArtifacts artifacts: '**/requirements*.lock', allowEmptyArchive: true
-            cleanWs()
+            script {
+                if (env.NODE_NAME) {
+                    try {
+                        archiveArtifacts artifacts: '**/requirements*.lock', allowEmptyArchive: true
+                    } catch (Exception e) {
+                        echo "Artifact archiving failed: ${e.getMessage()}"
+                    }
+                    cleanWs()
+                } else {
+                    echo "Skipping artifact archiving - no node context"
+                }
+            }
         }
         success {
-            echo "Pipeline succeeded! Image: ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+            echo "Pipeline succeeded! Image: ${env.DOCKER_REGISTRY}/${env.IMAGE_NAME}:${env.IMAGE_TAG}"
         }
         failure {
             echo "Pipeline failed. Check logs for details."
