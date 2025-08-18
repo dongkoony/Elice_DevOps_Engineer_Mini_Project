@@ -34,7 +34,7 @@ pipeline {
                     sh '''
                         export PATH="$HOME/.local/bin:$PATH"
                         uv venv
-                        source .venv/bin/activate
+                        . .venv/bin/activate
                         uv pip install -e .[dev]
                     '''
                 }
@@ -46,7 +46,7 @@ pipeline {
                 dir('aws/microservices/api-gateway') {
                     sh '''
                         export PATH="$HOME/.local/bin:$PATH"
-                        source .venv/bin/activate
+                        . .venv/bin/activate
                         uv pip compile pyproject.toml -o requirements.lock
                         uv pip compile pyproject.toml --extra dev -o requirements-dev.lock
                     '''
@@ -61,7 +61,7 @@ pipeline {
                         dir('aws/microservices/api-gateway') {
                             sh '''
                                 export PATH="$HOME/.local/bin:$PATH"
-                                source .venv/bin/activate
+                                . .venv/bin/activate
                                 ruff check . --output-format=github
                                 ruff format --check .
                             '''
@@ -73,7 +73,7 @@ pipeline {
                         dir('aws/microservices/api-gateway') {
                             sh '''
                                 export PATH="$HOME/.local/bin:$PATH"
-                                source .venv/bin/activate
+                                . .venv/bin/activate
                                 mypy . --install-types --non-interactive
                             '''
                         }
@@ -84,7 +84,7 @@ pipeline {
                         dir('aws/microservices/api-gateway') {
                             sh '''
                                 export PATH="$HOME/.local/bin:$PATH"
-                                source .venv/bin/activate
+                                . .venv/bin/activate
                                 bandit -r . -f json -o bandit-report.json || true
                             '''
                         }
@@ -98,7 +98,7 @@ pipeline {
                 dir('aws/microservices/api-gateway') {
                     sh '''
                         export PATH="$HOME/.local/bin:$PATH"
-                        source .venv/bin/activate
+                        . .venv/bin/activate
                         pytest --cov=. --cov-report=xml --cov-report=html --junitxml=test-results.xml
                     '''
                 }
