@@ -107,8 +107,26 @@ pipeline {
             }
             post {
                 always {
-                    publishTestResults testResultsPattern: 'aws/microservices/api-gateway/test-results.xml'
-                    publishCoverage adapters: [coberturaAdapter('aws/microservices/api-gateway/coverage.xml')]
+                    script {
+                        if (fileExists('aws/microservices/api-gateway/test-results.xml')) {
+                            junit 'aws/microservices/api-gateway/test-results.xml'
+                        } else {
+                            echo "No test results found"
+                        }
+                        
+                        if (fileExists('aws/microservices/api-gateway/coverage.xml')) {
+                            publishHTML([
+                                allowMissing: false,
+                                alwaysLinkToLastBuild: true,
+                                keepAll: true,
+                                reportDir: 'aws/microservices/api-gateway/htmlcov',
+                                reportFiles: 'index.html',
+                                reportName: 'Coverage Report'
+                            ])
+                        } else {
+                            echo "No coverage report found"
+                        }
+                    }
                 }
             }
         }
