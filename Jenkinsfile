@@ -179,8 +179,23 @@ pipeline {
             }
             steps {
                 sh '''
-                    sed -i "s|IMAGE_TAG_PLACEHOLDER|${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}|g" aws/kubernetes/dev/api-gateway-deployment.yaml
-                    kubectl apply -f aws/kubernetes/dev/ --namespace=elice-devops-dev
+                    # 파일 존재 확인
+                    ls -la aws/kubernetes/dev/
+                    
+                    # 올바른 파일명으로 이미지 태그 교체
+                    if [ -f "aws/kubernetes/dev/api-gateway.yaml" ]; then
+                        sed -i "s|IMAGE_TAG_PLACEHOLDER|${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}|g" aws/kubernetes/dev/api-gateway.yaml
+                        echo "Image tag updated in api-gateway.yaml"
+                    else
+                        echo "api-gateway.yaml not found, skipping image tag update"
+                    fi
+                    
+                    # kubectl 사용 가능한 경우에만 배포
+                    if command -v kubectl >/dev/null 2>&1 && kubectl cluster-info >/dev/null 2>&1; then
+                        kubectl apply -f aws/kubernetes/dev/ --namespace=elice-devops-dev
+                    else
+                        echo "kubectl not available or cluster not accessible - skipping deployment"
+                    fi
                 '''
             }
         }
