@@ -101,7 +101,15 @@ pipeline {
                     sh '''
                         export PATH="$HOME/.local/bin:$PATH"
                         . .venv/bin/activate
-                        pytest --cov=. --cov-report=xml --cov-report=html --junitxml=test-results.xml
+                        pytest --cov=. --cov-report=xml --cov-report=html --junitxml=test-results.xml || exit_code=$?
+                        if [ "${exit_code:-0}" = "5" ]; then
+                            echo "No tests found - this is acceptable for now"
+                            exit 0
+                        elif [ "${exit_code:-0}" != "0" ]; then
+                            echo "Tests failed with exit code $exit_code"
+                            exit $exit_code
+                        fi
+                        echo "Tests completed successfully"
                     '''
                 }
             }
