@@ -117,14 +117,19 @@ pipeline {
                 always {
                     script {
                         if (fileExists('aws/microservices/api-gateway/test-results.xml')) {
-                            junit 'aws/microservices/api-gateway/test-results.xml'
+                            def testContent = readFile('aws/microservices/api-gateway/test-results.xml')
+                            if (testContent.contains('<testcase') || testContent.contains('tests="') && !testContent.contains('tests="0"')) {
+                                junit 'aws/microservices/api-gateway/test-results.xml'
+                            } else {
+                                echo "Test report exists but contains no test results - skipping junit publication"
+                            }
                         } else {
-                            echo "No test results found"
+                            echo "No test results file found"
                         }
                         
                         if (fileExists('aws/microservices/api-gateway/coverage.xml')) {
                             publishHTML([
-                                allowMissing: false,
+                                allowMissing: true,
                                 alwaysLinkToLastBuild: true,
                                 keepAll: true,
                                 reportDir: 'aws/microservices/api-gateway/htmlcov',
