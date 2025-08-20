@@ -192,7 +192,23 @@ pipeline {
                     
                     # kubectl 사용 가능한 경우에만 배포
                     if command -v kubectl >/dev/null 2>&1 && kubectl cluster-info >/dev/null 2>&1; then
-                        kubectl apply -f aws/kubernetes/dev/ --namespace=elice-devops-dev
+                        echo "Deploying application resources (excluding namespace)..."
+                        
+                        # 네임스페이스 존재 확인
+                        if ! kubectl get namespace elice-devops-dev >/dev/null 2>&1; then
+                            echo "Warning: Namespace elice-devops-dev does not exist"
+                            echo "Please create it manually or ensure proper permissions"
+                        fi
+                        
+                        # namespace.yaml을 제외한 나머지 리소스들만 배포
+                        for file in aws/kubernetes/dev/*.yaml; do
+                            if [ "$(basename "$file")" != "namespace.yaml" ]; then
+                                echo "Applying $file..."
+                                kubectl apply -f "$file" --namespace=elice-devops-dev || echo "Failed to apply $file"
+                            else
+                                echo "Skipping namespace.yaml (requires admin permissions)"
+                            fi
+                        done
                     else
                         echo "kubectl not available or cluster not accessible - skipping deployment"
                     fi
