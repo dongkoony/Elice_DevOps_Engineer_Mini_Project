@@ -21,8 +21,19 @@ pipeline {
         stage('Install uv') {
             steps {
                 sh '''
-                    curl -LsSf https://astral.sh/uv/install.sh | sh
+                    # uv가 이미 설치되어 있는지 확인
+                    if ! command -v uv >/dev/null 2>&1; then
+                        echo "Installing uv..."
+                        curl -LsSf https://astral.sh/uv/install.sh | sh
+                        chmod +x $HOME/.local/bin/uv
+                    else
+                        echo "uv already installed"
+                    fi
+                    
+                    # PATH 설정 및 권한 확인
                     export PATH="$HOME/.local/bin:$PATH"
+                    ls -la $HOME/.local/bin/uv || echo "uv binary not found"
+                    chmod +x $HOME/.local/bin/uv 2>/dev/null || echo "chmod not needed"
                     uv --version
                 '''
             }
@@ -33,6 +44,10 @@ pipeline {
                 dir('aws/microservices/api-gateway') {
                     sh '''
                         export PATH="$HOME/.local/bin:$PATH"
+                        # uv 실행 권한 재확인
+                        chmod +x $HOME/.local/bin/uv 2>/dev/null || echo "chmod not needed"
+                        which uv || echo "uv not in PATH"
+                        ls -la $HOME/.local/bin/uv
                         uv venv
                         . .venv/bin/activate
                         uv pip install -e .[dev]
